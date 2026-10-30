@@ -20,6 +20,28 @@ namespace Core
         
         #region Unity Methods
         private void Awake() => Initialize();
+
+        private void Update()
+        {
+            CheckGround();
+        }
+        #endregion
+        
+        
+        
+        #region CheckGround
+        private void CheckGround()
+        {
+            var origin = CoreRigidbody.position + (Vector3.up * groundCheckRadius) + (Vector3.up * + groundCheckVerticalOffset);
+
+            IsGrounded = Physics.CheckSphere
+            (
+                origin,
+                groundCheckRadius,
+                _groundCheckMask,
+                QueryTriggerInteraction.Ignore
+            );
+        }
         #endregion
         
         
@@ -61,6 +83,8 @@ namespace Core
                     Debug.LogError("Rigidbody component not found on CoreController. Please, add ir manually.");
                 }
             }
+            
+            _groundCheckMask = ~LayerMask.GetMask("Player");
         }
     }
 }
