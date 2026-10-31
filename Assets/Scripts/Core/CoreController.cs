@@ -12,8 +12,7 @@ namespace Core
         //CheckGround
         [SerializeField] private float groundCheckRadius;
         [SerializeField] private float groundCheckVerticalOffset;
-        private LayerMask _groundCheckMask;
-        private bool _lastIsGroundedState;
+        [SerializeField] private LayerMask groundCheckMask;
         public bool IsGrounded { get; private set; }
         
         
@@ -21,7 +20,7 @@ namespace Core
         #region Unity Methods
         private void Awake() => Initialize();
 
-        private void Update()
+        private void FixedUpdate()
         {
             CheckGround();
         }
@@ -38,7 +37,7 @@ namespace Core
             (
                 origin,
                 groundCheckRadius,
-                _groundCheckMask,
+                groundCheckMask,
                 QueryTriggerInteraction.Ignore
             );
         }
@@ -65,6 +64,11 @@ namespace Core
             if (canPerform)
             {
                 blockers.Remove(blockerId);
+                
+                if(blockers.Count == 0)
+                {
+                    _blockers.Remove(action);
+                }
             }
             else
             {
@@ -72,19 +76,67 @@ namespace Core
             }
         }
         #endregion
+        
+        
+        
+        #region ActionController
+        private readonly Dictionary<ActionId, HashSet<string>> _actionsAndAuthors = new();
+        
+        public IReadOnlyCollection<ActionId> CurrentActions => _actionsAndAuthors.Keys;
+
+        public void AddAction (ActionId actionId, string authorId)
+        {
+            if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
+            {
+                _actionsAndAuthors.Add(actionId, new HashSet<string>());
+                _actionsAndAuthors[actionId].Add(authorId);
+            }
+            else
+            {
+                _actionsAndAuthors[actionId].Add(authorId);
+            }
+        }
+
+        public void RemoveAction(ActionId actionId, string authorId)
+        {
+            if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
+            {
+                Debug.LogWarning($"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
+                return;
+            }
+
+            if (!_actionsAndAuthors[actionId].Remove(authorId))
+            {
+                Debug.LogWarning($"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
+                return;
+            }
+
+            if(_actionsAndAuthors[actionId].Count == 0)
+            {
+                _actionsAndAuthors.Remove(actionId);
+            }
+        }
+        #endregion
 
         private void Initialize()
         {
+            //Rigidbody
             if (rigidbody == null)
             {
                 rigidbody = GetComponent<Rigidbody>();
                 if (rigidbody == null)
                 {
                     Debug.LogError("Rigidbody component not found on CoreController. Please, add ir manually.");
+                    enabled = false;
+                    return;
                 }
             }
-            
-            _groundCheckMask = ~LayerMask.GetMask("Player");
+            //CheckGround
+            if (groundCheckMask == 0)
+            {
+                Debug.LogError("GroundCheckMask not found on CoreController. Please, add it manually.");
+                enabled = false;
+            }
         }
     }
 }
