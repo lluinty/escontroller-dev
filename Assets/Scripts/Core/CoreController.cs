@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.Serialization;
 
 namespace Core
@@ -8,25 +9,34 @@ namespace Core
     {
         //Core Modules
         [SerializeField] private List<MonoBehaviour> coreModules;
+
         public IReadOnlyList<MonoBehaviour> CoreModules => coreModules;
+
         //Rigidbody
         [SerializeField] private Rigidbody rigidbody;
         public Rigidbody CoreRigidbody => rigidbody;
-        
-        
-        
+
+
         #region Unity Methods
 
         private void Awake()
         {
             GetComponents();
-            InitializeModules();
+            if (GetComponents())
+            {
+                InitializeModules();
+            }
+            else
+            {
+                Debug.LogError("GetComponents failed. So CoreController cannot still work");
+            }
         }
+
         #endregion
-        
-        
-        
+
+
         #region ActionPermissionController
+
         private readonly Dictionary<ActionId, HashSet<string>> _blockers = new();
 
         public bool CanPerform(ActionId action)
@@ -34,7 +44,7 @@ namespace Core
             return !_blockers.TryGetValue(action, out var blockers) || blockers.Count == 0;
         }
 
-        public void SetCanPerform (ActionId action, string blockerId, bool canPerform)
+        public void SetCanPerform(ActionId action, string blockerId, bool canPerform)
         {
             if (!_blockers.TryGetValue(action, out var blockers))
             {
@@ -45,8 +55,8 @@ namespace Core
             if (canPerform)
             {
                 blockers.Remove(blockerId);
-                
-                if(blockers.Count == 0)
+
+                if (blockers.Count == 0)
                 {
                     _blockers.Remove(action);
                 }
@@ -56,16 +66,17 @@ namespace Core
                 blockers.Add(blockerId);
             }
         }
+
         #endregion
-        
-        
-        
+
+
         #region ActionController
+
         private readonly Dictionary<ActionId, HashSet<string>> _actionsAndAuthors = new();
-        
+
         public IReadOnlyCollection<ActionId> CurrentActions => _actionsAndAuthors.Keys;
 
-        public void AddAction (ActionId actionId, string authorId)
+        public void AddAction(ActionId actionId, string authorId)
         {
             if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
             {
@@ -82,24 +93,27 @@ namespace Core
         {
             if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
             {
-                Debug.LogWarning($"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
+                Debug.LogWarning(
+                    $"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
                 return;
             }
 
             if (!_actionsAndAuthors[actionId].Remove(authorId))
             {
-                Debug.LogWarning($"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
+                Debug.LogWarning(
+                    $"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
                 return;
             }
 
-            if(_actionsAndAuthors[actionId].Count == 0)
+            if (_actionsAndAuthors[actionId].Count == 0)
             {
                 _actionsAndAuthors.Remove(actionId);
             }
         }
+
         #endregion
 
-        private void GetComponents()
+        private bool GetComponents()
         {
             //Rigidbody
             if (rigidbody == null)
@@ -109,16 +123,17 @@ namespace Core
                 {
                     Debug.LogError("Rigidbody component not found on CoreController. Please, add ir manually.");
                     enabled = false;
-                    return;
+                    return false;
                 }
             }
+            return true;
         }
 
         private void InitializeModules()
         {
-            foreach (var module in coreModules)
+            if (coreModules != null)
             {
-                if (module != null)
+                foreach (var module in coreModules)
                 {
                     if (module is ICoreModule checkedModule)
                     {
@@ -127,7 +142,14 @@ namespace Core
                     else
                     {
                         Debug.LogError($"Module {module} does not implement ICoreModule interface.");
+                        return;
                     }
+                }
+            }
+            else
+            {
+                {
+                    Debug.Log("CoreController started without any Core Modules");
                 }
             }
         }

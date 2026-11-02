@@ -24,6 +24,8 @@ namespace Core.CoreModules
 
         private void FixedUpdate()
         {
+            if (_rigidbody)
+            {
                 var origin = _rigidbody.position + (Vector3.up * groundCheckRadius) + (Vector3.up * + groundCheckVerticalOffset);
 
                 IsGrounded = Physics.CheckSphere
@@ -33,30 +35,16 @@ namespace Core.CoreModules
                     groundCheckMask,
                     QueryTriggerInteraction.Ignore
                 );
+            }
+            else
+            {
+                Debug.LogWarning("Rigidbody not assigned on CheckGround CoreModule.");
+            }
         }
 
         public void Initialize(CoreController core)
         {
             _rigidbody = core.CoreRigidbody;
-        }
-
-        private void OnDrawGizmos()
-        {
-            if (enableGizmos)
-            {
-                //Draw CheckGround gizmos
-                if (IsGrounded)
-                {
-                    Gizmos.color = Color.green;
-                }
-                else
-                {
-                    Gizmos.color = Color.gold;
-                }
-                Gizmos.DrawWireSphere
-                (_rigidbody.position + (Vector3.up * groundCheckRadius) + 
-                 (Vector3.up * + groundCheckVerticalOffset), groundCheckRadius);
-            }
         }
     }
 }
