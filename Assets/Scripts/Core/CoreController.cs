@@ -1,45 +1,26 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Serialization;
 
 namespace Core
 {
     public class CoreController : MonoBehaviour
     {
+        //Core Modules
+        [SerializeField] private List<MonoBehaviour> coreModules;
+        public IReadOnlyList<MonoBehaviour> CoreModules => coreModules;
         //Rigidbody
         [SerializeField] private Rigidbody rigidbody;
         public Rigidbody CoreRigidbody => rigidbody;
         
-        //CheckGround
-        [SerializeField] private float groundCheckRadius;
-        [SerializeField] private float groundCheckVerticalOffset;
-        [SerializeField] private LayerMask groundCheckMask;
-        public bool IsGrounded { get; private set; }
-        
         
         
         #region Unity Methods
-        private void Awake() => Initialize();
 
-        private void FixedUpdate()
+        private void Awake()
         {
-            CheckGround();
-        }
-        #endregion
-        
-        
-        
-        #region CheckGround
-        private void CheckGround()
-        {
-            var origin = CoreRigidbody.position + (Vector3.up * groundCheckRadius) + (Vector3.up * + groundCheckVerticalOffset);
-
-            IsGrounded = Physics.CheckSphere
-            (
-                origin,
-                groundCheckRadius,
-                groundCheckMask,
-                QueryTriggerInteraction.Ignore
-            );
+            GetComponents();
+            InitializeModules();
         }
         #endregion
         
@@ -118,7 +99,7 @@ namespace Core
         }
         #endregion
 
-        private void Initialize()
+        private void GetComponents()
         {
             //Rigidbody
             if (rigidbody == null)
@@ -131,11 +112,23 @@ namespace Core
                     return;
                 }
             }
-            //CheckGround
-            if (groundCheckMask == 0)
+        }
+
+        private void InitializeModules()
+        {
+            foreach (var module in coreModules)
             {
-                Debug.LogError("GroundCheckMask not found on CoreController. Please, add it manually.");
-                enabled = false;
+                if (module != null)
+                {
+                    if (module is ICoreModule checkedModule)
+                    {
+                        checkedModule.Initialize(this);
+                    }
+                    else
+                    {
+                        Debug.LogError($"Module {module} does not implement ICoreModule interface.");
+                    }
+                }
             }
         }
     }

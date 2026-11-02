@@ -11,10 +11,14 @@
             "id": "6c27a2be439e90c7",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "README.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "README"
             }
           }
         ]
@@ -186,17 +190,20 @@
   },
   "active": "6c27a2be439e90c7",
   "lastOpenFiles": [
+    "Temp/UnityTempFile-7575f41c3ad2ce384813233382e6bd3a",
+    "Temp/UnityTempFile-af8e4550e537b7998b2af7d4ae07ef36",
+    "Temp/UnityTempFile-183b3098926db5c308e92e06245271f9",
+    "Temp/ADB-Refresh490618b4a483ced81bcc9c03f7a12613",
+    "Temp/UnityTempFile-ee3f41f59570ec9a7a9368cc448a253f",
+    "Temp/ADB-Refreshc5cded92683e031718e0f5d9093e7f08",
+    "Temp/ADB-Refreshbebb9cc0475a1b32eb015f88e3686f81",
+    "Temp/ADB-Refresha89bb43ed3d0434f8a6d541d239f5ac6",
+    "Temp/ADB-Refreshdc34e4bb98e17307db450a5b417ca775",
+    "Temp/ADB-Refresh734cc680be6ca802c8b7ca6cf2f4cd17",
+    "Temp/ADB-Refresh54e6580668954ce499637668784fe7e3",
     "Library API.md",
+    "Untitled.canvas",
     "README.md",
-    "Temp/ADB-Refresh701e7809c89ca06148a00da3b42b647c",
-    "Temp/ADB-Refresh2675a7ce244660cfaaecb593660b2144",
-    "Temp/ADB-Refreshf2acd6b9d6c0420dca3480ed0c9954cc",
-    "Temp/ADB-Refreshfaa9da238e6627289ac5118dfb5efcce",
-    "Temp/ADB-Refresh36672790ea39777ee85425a4c8819ec6",
-    "Temp/ADB-Refresh7743da094801da79f95b5ac2d9be5bb4",
-    "Temp/UnityTempFile-f01208058751e83a8a3da239d9ceb0ff",
-    "Library/ProtocolInstance.json",
-    "Temp/UnityTempFile-642538085ddd79c87ab0de6bf257a9ff",
-    "Temp/Burst/burst-aotmdelbjzt.xvs"
+    "file:/home/luinty/Downloads/Анкета escontroller.md"
   ]
 }
