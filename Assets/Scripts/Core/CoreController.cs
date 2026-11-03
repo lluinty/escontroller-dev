@@ -86,50 +86,67 @@ namespace Core
             }
             else
             {
-                Debug.LogWarning($"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
+                Debug.LogWarning(
+                    $"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
             }
         }
+
         #endregion
 
 
         #region ActionController
 
-        private readonly Dictionary<ActionId, HashSet<string>> _actionsAndAuthors = new();
+        private readonly Dictionary<ActionId, HashSet<string>> _actionOwners = new();
 
-        public IReadOnlyCollection<ActionId> CurrentActions => _actionsAndAuthors.Keys;
+        public IReadOnlyCollection<ActionId> CurrentActions => _actionOwners.Keys;
 
         public void AddAction(ActionId actionId, string authorId)
         {
-            if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
+            if (!_actionOwners.TryGetValue(actionId, out var authors))
             {
-                _actionsAndAuthors.Add(actionId, new HashSet<string>());
-                _actionsAndAuthors[actionId].Add(authorId);
+                if (!string.IsNullOrWhiteSpace(authorId))
+                {
+                    authors = new HashSet<string>();
+                    authors.Add(authorId);
+                    _actionOwners.Add(actionId, authors);
+                }
+                else
+                {
+                    Debug.LogWarning($"Something tried to add action using non-existing authorId {authorId}");
+                }
             }
             else
             {
-                _actionsAndAuthors[actionId].Add(authorId);
+                if (!string.IsNullOrWhiteSpace(authorId))
+                {
+                    authors.Add(authorId);
+                }
+                else
+                {
+                    Debug.LogWarning($"Something tried to add action using non-existing authorId {authorId}");
+                }
             }
         }
 
         public void RemoveAction(ActionId actionId, string authorId)
         {
-            if (!_actionsAndAuthors.TryGetValue(actionId, out var authors))
+            if (!_actionOwners.TryGetValue(actionId, out var authors))
             {
                 Debug.LogWarning(
                     $"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
                 return;
             }
 
-            if (!_actionsAndAuthors[actionId].Remove(authorId))
+            if (!authors.Remove(authorId))
             {
                 Debug.LogWarning(
                     $"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
                 return;
             }
 
-            if (_actionsAndAuthors[actionId].Count == 0)
+            if (authors.Count == 0)
             {
-                _actionsAndAuthors.Remove(actionId);
+                _actionOwners.Remove(actionId);
             }
         }
 
