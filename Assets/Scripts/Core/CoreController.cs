@@ -1,7 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-using UnityEngine.Rendering.Universal;
-using UnityEngine.Serialization;
 
 namespace Core
 {
@@ -44,17 +42,42 @@ namespace Core
             return !_blockers.TryGetValue(action, out var blockers) || blockers.Count == 0;
         }
 
-        public void SetCanPerform(ActionId action, string blockerId, bool canPerform)
+        public void BlockAction(ActionId action, string blockerId)
         {
             if (!_blockers.TryGetValue(action, out var blockers))
             {
-                blockers = new HashSet<string>();
-                _blockers.Add(action, blockers);
+                if (!string.IsNullOrWhiteSpace(blockerId))
+                {
+                    blockers = new HashSet<string>();
+                    blockers.Add(blockerId);
+                    _blockers.Add(action, blockers);
+                }
+                else
+                {
+                    Debug.LogWarning($"blockerId is null or whitespace, so can't block action {action}");
+                }
             }
-
-            if (canPerform)
+            else
             {
-                blockers.Remove(blockerId);
+                if (!string.IsNullOrWhiteSpace(blockerId))
+                {
+                    blockers.Add(blockerId);
+                }
+                else
+                {
+                    Debug.LogWarning($"blockerId is null or whitespace, so can't block action {action}");
+                }
+            }
+        }
+
+        public void UnblockAction(ActionId action, string blockerId)
+        {
+            if (_blockers.TryGetValue(action, out var blockers))
+            {
+                if (!blockers.Remove(blockerId))
+                {
+                    Debug.LogWarning($"Something tried to remove action using non-existing blockerId {blockerId}");
+                }
 
                 if (blockers.Count == 0)
                 {
@@ -63,10 +86,9 @@ namespace Core
             }
             else
             {
-                blockers.Add(blockerId);
+                Debug.LogWarning($"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
             }
         }
-
         #endregion
 
 
@@ -126,6 +148,7 @@ namespace Core
                     return false;
                 }
             }
+
             return true;
         }
 
