@@ -1,4 +1,5 @@
 using System;
+
 namespace Core
 {
     public readonly struct ActionId : IEquatable<ActionId>
@@ -7,7 +8,7 @@ namespace Core
 
         public ActionId(string value)
         {
-            if(string.IsNullOrEmpty(value))
+            if (string.IsNullOrEmpty(value))
             {
                 throw new ArgumentException("Value cannot be null or empty", nameof(value));
             }

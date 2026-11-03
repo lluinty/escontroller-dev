@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Core
 {
@@ -19,15 +20,32 @@ namespace Core
 
         private void Awake()
         {
-            GetComponents();
             if (GetComponents())
             {
-                InitializeModules();
+                // InitializeCoreModules();
             }
             else
             {
-                Debug.LogError("GetComponents failed. So CoreController cannot still work");
+                // Debug.LogError("GetComponents failed. So CoreController cannot still work");
             }
+        }
+
+        private void Update()
+        {
+            CheckValidationUpdates();
+        }
+
+        private void OnValidate()
+        {
+            _validatedCoreModules.Clear();
+            _nonValidatedCoreModules.Clear();
+            foreach (var module in coreModules)
+            {
+                ValidateCoreModule(module);
+            }
+
+            coreModules.RemoveAll(module => module == null || _nonValidatedCoreModules.Contains(module));
+            _nonValidatedCoreModules.Clear();
         }
 
         #endregion
@@ -152,6 +170,107 @@ namespace Core
 
         #endregion
 
+        #region Modules Validation & Initialization
+
+        private HashSet<ICoreModule> _validatedCoreModules = new HashSet<ICoreModule>();
+        private HashSet<ICoreModule> _validatedCoreModulesLastState = new HashSet<ICoreModule>();
+        private HashSet<MonoBehaviour> _nonValidatedCoreModules = new HashSet<MonoBehaviour>();
+        private HashSet<ICoreModule> _initializedCoreModules = new HashSet<ICoreModule>();
+
+
+        public void AddCoreModule(MonoBehaviour module)
+        {
+            if (module == null || coreModules.Contains(module))
+            {
+                return;
+            }
+
+            //coreModule - это исходный список с черновыми вариантами модулей.
+            //Модуль не нуждается в проверке при добавлении его в coreModules, тк отсеется позже в ValidateCoreModule.
+            coreModules.Add(module);
+
+            ValidateCoreModule(module);
+            InitializeCoreModules();
+        }
+
+        public void RemoveCoreModule(ICoreModule module)
+        {
+            if (ReferenceEquals(module, null))
+            {
+                return;
+            }
+
+            if (!_validatedCoreModules.Remove(module))
+            {
+                Debug.LogWarning($"Failed to remove ICoreModule module {module} from _validatedCoreModules");
+            }
+
+            if (module is MonoBehaviour behaviour && behaviour != null)
+            {
+                _nonValidatedCoreModules.Remove(behaviour);
+                if (!coreModules.Remove(behaviour))
+                {
+                    Debug.LogWarning($"Failed to remove MonoBehaviour module {module} from coreModules");
+                }
+            }
+
+            InitializeCoreModules();
+        }
+
+        private void CheckValidationUpdates()
+        {
+            if (!_validatedCoreModules.SetEquals(_validatedCoreModulesLastState))
+            {
+                InitializeCoreModules();
+            }
+        }
+
+        private void ValidateCoreModule(MonoBehaviour module)
+        {
+            if (module == null)
+            {
+                Debug.LogWarning("Module is null.");
+                return;
+            }
+
+            if (module is not ICoreModule coreModule)
+            {
+                _nonValidatedCoreModules.Add(module);
+
+                Debug.LogWarning(
+                    $"Module {module} does not implement ICoreModule interface.");
+
+                return;
+            }
+
+            _validatedCoreModules.Add(coreModule);
+        }
+
+        private void InitializeCoreModules()
+        {
+            var modulesToDeinitialize = _initializedCoreModules.Except(_validatedCoreModules).ToHashSet();
+            //Deinitialization
+            foreach (var module in modulesToDeinitialize)
+            {
+                module.Initialize(null);
+                _initializedCoreModules.Remove(module);
+            }
+
+            //Initialization
+            foreach (var module in _validatedCoreModules)
+            {
+                if (!_initializedCoreModules.Contains(module))
+                {
+                    module.Initialize(this);
+                    _initializedCoreModules.Add(module);
+                }
+            }
+
+            _validatedCoreModulesLastState = new HashSet<ICoreModule>(_validatedCoreModules);
+        }
+
+        #endregion
+
         private bool GetComponents()
         {
             //Rigidbody
@@ -167,31 +286,6 @@ namespace Core
             }
 
             return true;
-        }
-
-        private void InitializeModules()
-        {
-            if (coreModules != null)
-            {
-                foreach (var module in coreModules)
-                {
-                    if (module is ICoreModule checkedModule)
-                    {
-                        checkedModule.Initialize(this);
-                    }
-                    else
-                    {
-                        Debug.LogError($"Module {module} does not implement ICoreModule interface.");
-                        return;
-                    }
-                }
-            }
-            else
-            {
-                {
-                    Debug.Log("CoreController started without any Core Modules");
-                }
-            }
         }
     }
 }

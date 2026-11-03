@@ -25,7 +25,8 @@ namespace Core.CoreModules
         {
             if (_rigidbody)
             {
-                var origin = _rigidbody.position + (Vector3.up * groundCheckRadius) + (Vector3.up * + groundCheckVerticalOffset);
+                var origin = _rigidbody.position + (Vector3.up * groundCheckRadius) +
+                             (Vector3.up * +groundCheckVerticalOffset);
 
                 IsGrounded = Physics.CheckSphere
                 (
