@@ -9,7 +9,6 @@ namespace Core.CoreModules
         [SerializeField] private float groundCheckRadius;
         [SerializeField] private float groundCheckVerticalOffset;
         [SerializeField] private LayerMask groundCheckMask;
-        [SerializeField] private bool enableGizmos = true;
         private Rigidbody _rigidbody;
         public bool IsGrounded { get; private set; }
 
