@@ -46,5 +46,10 @@ namespace Core.CoreModules
         {
             _rigidbody = core.CoreRigidbody;
         }
+
+        public void Deinitialize()
+        {
+            _rigidbody = null;
+        }
     }
 }

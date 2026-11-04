@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace Core
@@ -7,9 +8,11 @@ namespace Core
     public class CoreController : MonoBehaviour
     {
         //Core Modules
-        [SerializeField] private List<MonoBehaviour> coreModules;
+        [SerializeField] private List<MonoBehaviour> coreModules = new();
+        private ReadOnlyCollection<MonoBehaviour> _coreModulesReadOnly;
 
-        public IReadOnlyList<MonoBehaviour> CoreModules => coreModules;
+        public IReadOnlyList<MonoBehaviour> CoreModules =>
+            _coreModulesReadOnly ??= coreModules.AsReadOnly();
 
         //Rigidbody
         [SerializeField] private Rigidbody rigidbody;
@@ -22,11 +25,11 @@ namespace Core
         {
             if (GetComponents())
             {
-                // InitializeCoreModules();
+                InitializeCoreModules();
             }
             else
             {
-                // Debug.LogError("GetComponents failed. So CoreController cannot still work");
+                Debug.LogError("GetComponents failed. So CoreController cannot still work");
             }
         }
 
@@ -90,22 +93,25 @@ namespace Core
 
         public void UnblockAction(ActionId action, string blockerId)
         {
-            if (_blockers.TryGetValue(action, out var blockers))
+            if (!string.IsNullOrWhiteSpace(blockerId))
             {
-                if (!blockers.Remove(blockerId))
+                if (_blockers.TryGetValue(action, out var blockers))
                 {
-                    Debug.LogWarning($"Something tried to remove action using non-existing blockerId {blockerId}");
-                }
+                    if (!blockers.Remove(blockerId))
+                    {
+                        Debug.LogWarning($"Something tried to remove action using non-existing blockerId {blockerId}");
+                    }
 
-                if (blockers.Count == 0)
-                {
-                    _blockers.Remove(action);
+                    if (blockers.Count == 0)
+                    {
+                        _blockers.Remove(action);
+                    }
                 }
-            }
-            else
-            {
-                Debug.LogWarning(
-                    $"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
+                else
+                {
+                    Debug.LogWarning(
+                        $"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
+                }
             }
         }
 
@@ -120,9 +126,9 @@ namespace Core
 
         public void AddAction(ActionId actionId, string authorId)
         {
-            if (!_actionOwners.TryGetValue(actionId, out var authors))
+            if (!string.IsNullOrWhiteSpace(authorId))
             {
-                if (!string.IsNullOrWhiteSpace(authorId))
+                if (!_actionOwners.TryGetValue(actionId, out var authors))
                 {
                     authors = new HashSet<string>();
                     authors.Add(authorId);
@@ -130,41 +136,41 @@ namespace Core
                 }
                 else
                 {
-                    Debug.LogWarning($"Something tried to add action using non-existing authorId {authorId}");
+                    authors.Add(authorId);
                 }
             }
             else
             {
-                if (!string.IsNullOrWhiteSpace(authorId))
-                {
-                    authors.Add(authorId);
-                }
-                else
-                {
-                    Debug.LogWarning($"Something tried to add action using non-existing authorId {authorId}");
-                }
+                Debug.LogWarning($"Something tried to add action using non-existing authorId {authorId}");
             }
         }
 
         public void RemoveAction(ActionId actionId, string authorId)
         {
-            if (!_actionOwners.TryGetValue(actionId, out var authors))
+            if (!string.IsNullOrWhiteSpace(authorId))
             {
-                Debug.LogWarning(
-                    $"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
-                return;
-            }
+                if (!_actionOwners.TryGetValue(actionId, out var authors))
+                {
+                    Debug.LogWarning(
+                        $"Tried to remove non-existing action: {actionId} from ActionsController. AuthorID: {authorId}");
+                    return;
+                }
 
-            if (!authors.Remove(authorId))
-            {
-                Debug.LogWarning(
-                    $"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
-                return;
-            }
+                if (!authors.Remove(authorId))
+                {
+                    Debug.LogWarning(
+                        $"Tried to remove action from non-existing author: {actionId} from ActionsController. AuthorID: {authorId}");
+                    return;
+                }
 
-            if (authors.Count == 0)
+                if (authors.Count == 0)
+                {
+                    _actionOwners.Remove(actionId);
+                }
+            }
+            else
             {
-                _actionOwners.Remove(actionId);
+                Debug.LogWarning($"Something tried to remove action using non-existing authorId {authorId}");
             }
         }
 
@@ -180,13 +186,11 @@ namespace Core
 
         public void AddCoreModule(MonoBehaviour module)
         {
-            if (module == null || coreModules.Contains(module))
+            if (module == null || coreModules.Contains(module) || module is not ICoreModule)
             {
                 return;
             }
 
-            //coreModule - это исходный список с черновыми вариантами модулей.
-            //Модуль не нуждается в проверке при добавлении его в coreModules, тк отсеется позже в ValidateCoreModule.
             coreModules.Add(module);
 
             ValidateCoreModule(module);
@@ -252,8 +256,8 @@ namespace Core
             //Deinitialization
             foreach (var module in modulesToDeinitialize)
             {
-                module.Initialize(null);
                 _initializedCoreModules.Remove(module);
+                module.Deinitialize();
             }
 
             //Initialization
