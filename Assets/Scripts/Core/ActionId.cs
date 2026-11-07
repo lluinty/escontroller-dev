@@ -15,6 +15,8 @@ namespace Core
 
             Value = value;
         }
+        
+        public bool IsValid => !string.IsNullOrEmpty(Value);
 
         public bool Equals(ActionId other)
         {

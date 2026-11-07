@@ -22,6 +22,12 @@ namespace Core.CoreModules
                 return;
             }
             
+            if (!actionId.IsValid)
+            {
+                Debug.LogWarning($"Tried to add action using non-existing actionId {actionId}");
+                return;
+            }
+            
             if (!string.IsNullOrWhiteSpace(authorId))
             {
                 if (!_actionOwners.TryGetValue(actionId, out var authors))
@@ -47,6 +53,12 @@ namespace Core.CoreModules
             {
                 Debug.LogWarning($"Tried to remove action using non-initialized {this}. ActionID: {actionId}," +
                                  $" AuthorID: {authorId}");
+                return;
+            }
+
+            if (!actionId.IsValid)
+            {
+                Debug.LogWarning($"Tried to remove action using non-existing actionId {actionId}");
                 return;
             }
             

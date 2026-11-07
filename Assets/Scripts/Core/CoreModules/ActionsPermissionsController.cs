@@ -23,6 +23,13 @@ namespace Core.CoreModules
                 Debug.LogWarning($"{this} is not initialized, can't block action {action}");
                 return;
             }
+            
+            if (!action.IsValid)
+            {
+                Debug.LogWarning($"Tried to block action using non-existing actionId {action}");
+                return;
+            }
+
             if (!_blockers.TryGetValue(action, out var blockers))
             {
                 if (!string.IsNullOrWhiteSpace(blockerId))
@@ -54,6 +61,12 @@ namespace Core.CoreModules
             if (!_isInitialized)
             {
                 Debug.LogWarning($"{this} is not initialized, can't unblock action {action}");
+                return;
+            }
+            
+            if (!action.IsValid)
+            {
+                Debug.LogWarning($"Tried to unblock action using non-existing actionId {action}");
                 return;
             }
             
