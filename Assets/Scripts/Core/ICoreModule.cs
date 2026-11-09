@@ -2,7 +2,7 @@ namespace Core
 {
     public interface ICoreModule
     {
-        void Initialize(CoreController core);
+        bool Initialize(CoreController core);
         void Deinitialize();
     }
 }

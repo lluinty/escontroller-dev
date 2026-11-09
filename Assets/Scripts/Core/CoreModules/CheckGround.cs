@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Core.CoreModules
 {
-    public class CheckGround : MonoBehaviour, ICoreModule
+    public class CheckGround : CoreModule
     {
         #region Variables
         private bool _isInitialized;
@@ -48,7 +48,7 @@ namespace Core.CoreModules
         #endregion
         
         #region Initialization API
-        public void Initialize(CoreController core)
+        public override bool Initialize(CoreController core)
         {
             _coreController = core;
             
@@ -56,7 +56,6 @@ namespace Core.CoreModules
             {
                 Debug.LogError($"{this} haven't access to CoreController.");
                 Deinitialize();
-                return;
             }
             
             _rigidbody = core.CoreRigidbody;
@@ -64,13 +63,13 @@ namespace Core.CoreModules
             if (!CheckComponents())
             {
                 RequestToRemoveMe();
-                return;
             }
 
             _isInitialized = true;
+            return true;
         }
         
-        public void Deinitialize()
+        public override void Deinitialize()
         {
             _rigidbody = null;
             _coreController = null;
