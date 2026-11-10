@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Core.CoreModules
 {
-    public class ActionsController : MonoBehaviour, ICoreModule
+    public class ActionsController : CoreModule
     {
         private bool _isInitialized;
         
@@ -96,12 +96,13 @@ namespace Core.CoreModules
         
         #region Initialization API
 
-        public void Initialize(CoreController core)
+        public override bool Initialize(CoreController core)
         {
             _isInitialized = true;
+            return true;
         }
 
-        public void Deinitialize()
+        public override void Deinitialize()
         {
             _isInitialized = false;
         }

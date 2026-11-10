@@ -1,18 +1,18 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
 
 namespace Core
 {
     public class CoreController : MonoBehaviour
     {
         //Core Modules
-        [SerializeField] private List<MonoBehaviour> coreModules = new();
-        private ReadOnlyCollection<MonoBehaviour> _coreModulesReadOnly;
+        [SerializeField] private List<CoreModule> coreModules = new List<CoreModule>();
+        private List<CoreModule> _initializedCoreModules = new List<CoreModule>();
+        public IReadOnlyCollection<CoreModule> CoreModules => coreModules;
+        public IReadOnlyCollection<CoreModule> InitializedCoreModules => _initializedCoreModules;
 
-        public IReadOnlyList<MonoBehaviour> CoreModules =>
-            _coreModulesReadOnly ??= coreModules.AsReadOnly();
+
+        private bool _isInitializing;
 
         //Rigidbody
         [SerializeField] private Rigidbody rigidbody;
@@ -29,129 +29,155 @@ namespace Core
             }
             else
             {
-                Debug.LogError("GetComponents failed. So CoreController cannot still work");
+                Debug.LogError
+                    ("Не удалось получить необходимые компоненты. Попробуйте добавить их вручную");
             }
-        }
-
-        private void Update()
-        {
-            CheckValidationUpdates();
-        }
-
-        private void OnValidate()
-        {
-            _validatedCoreModules.Clear();
-            _nonValidatedCoreModules.Clear();
-            foreach (var module in coreModules)
-            {
-                ValidateCoreModule(module);
-            }
-
-            coreModules.RemoveAll(module => module == null || _nonValidatedCoreModules.Contains(module));
-            _nonValidatedCoreModules.Clear();
         }
 
         #endregion
-        
-        
-
-        #region Modules Validation & Initialization
-
-        private HashSet<ICoreModule> _validatedCoreModules = new HashSet<ICoreModule>();
-        private HashSet<ICoreModule> _validatedCoreModulesLastState = new HashSet<ICoreModule>();
-        private HashSet<MonoBehaviour> _nonValidatedCoreModules = new HashSet<MonoBehaviour>();
-        private HashSet<ICoreModule> _initializedCoreModules = new HashSet<ICoreModule>();
 
 
-        public void AddCoreModule(MonoBehaviour module)
-        {
-            if (module == null || coreModules.Contains(module) || module is not ICoreModule)
-            {
-                return;
-            }
-
-            coreModules.Add(module);
-
-            ValidateCoreModule(module);
-            InitializeCoreModules();
-        }
-
-        public void RemoveCoreModule(ICoreModule module)
-        {
-            if (ReferenceEquals(module, null))
-            {
-                return;
-            }
-
-            if (!_validatedCoreModules.Remove(module))
-            {
-                Debug.LogWarning($"Failed to remove ICoreModule module {module} from _validatedCoreModules");
-            }
-
-            if (module is MonoBehaviour behaviour && behaviour != null)
-            {
-                _nonValidatedCoreModules.Remove(behaviour);
-                if (!coreModules.Remove(behaviour))
-                {
-                    Debug.LogWarning($"Failed to remove MonoBehaviour module {module} from coreModules");
-                }
-            }
-
-            InitializeCoreModules();
-        }
-
-        private void CheckValidationUpdates()
-        {
-            if (!_validatedCoreModules.SetEquals(_validatedCoreModulesLastState))
-            {
-                InitializeCoreModules();
-            }
-        }
-
-        private void ValidateCoreModule(MonoBehaviour module)
-        {
-            if (module == null)
-            {
-                Debug.LogWarning("Module is null.");
-                return;
-            }
-
-            if (module is not ICoreModule coreModule)
-            {
-                _nonValidatedCoreModules.Add(module);
-
-                Debug.LogWarning(
-                    $"Module {module} does not implement ICoreModule interface.");
-
-                return;
-            }
-
-            _validatedCoreModules.Add(coreModule);
-        }
+        #region Modules Initialization
 
         private void InitializeCoreModules()
         {
-            var modulesToDeinitialize = _initializedCoreModules.Except(_validatedCoreModules).ToHashSet();
-            //Deinitialization
-            foreach (var module in modulesToDeinitialize)
+            if (_isInitializing)
             {
-                _initializedCoreModules.Remove(module);
-                module.Deinitialize();
+                return;
             }
 
-            //Initialization
-            foreach (var module in _validatedCoreModules)
+            try
             {
-                if (!_initializedCoreModules.Contains(module))
+                _isInitializing = true;
+                var modulesToRemove = new List<CoreModule>();
+                var initializedModulesToRemove = new List<CoreModule>();
+
+                //Инициализация модулей.
+                foreach (var module in coreModules)
                 {
-                    module.Initialize(this);
-                    _initializedCoreModules.Add(module);
+                    if (module != null)
+                    {
+                        if (!_initializedCoreModules.Contains(module))
+                        {
+                            if (module.Initialize(this))
+                            {
+                                _initializedCoreModules.Add(module);
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"{module} вернул false при попытке инициализации.");
+                                module.Deinitialize();
+                                modulesToRemove.Add(module);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"{module} имеет значение null, поэтому не может быть инициализирован.");
+                        modulesToRemove.Add(module);
+                    }
                 }
+
+                //Деинициализация и удаление уже неиспользуемых модулей. 
+                foreach (var module in _initializedCoreModules)
+                {
+                    if (module != null)
+                    {
+                        if (!coreModules.Contains(module))
+                        {
+                            Debug.Log
+                            ($"{module} находиться в _initializedCoreModules, но не найден в coreModules" +
+                             $", следовательно будет удалён.");
+                            module.Deinitialize();
+                            initializedModulesToRemove.Add(module);
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning
+                            ($"Модуль внутри _initializedCoreModules имеет значение null, поэтому будет удалён.");
+                        initializedModulesToRemove.Add(module);
+                    }
+                }
+
+                //Удаление модулей нуждающихся в удалении после инициализации.
+                while (_modulesToRemoveAfterInitialization.Count > 0)
+                {
+                    var modulesLocal = _modulesToRemoveAfterInitialization;
+                    _modulesToRemoveAfterInitialization = new List<CoreModule>();
+                    foreach (var module in modulesLocal)
+                    {
+                        if (!module) continue;
+                        
+                        coreModules.Remove(module);
+                        if(_initializedCoreModules.Remove(module))
+                        {
+                            module.Deinitialize();
+                        }
+                    }
+                }
+
+
+                _modulesToRemoveAfterInitialization.Clear();
+                coreModules.RemoveAll(modulesToRemove.Contains);
+                _initializedCoreModules.RemoveAll(initializedModulesToRemove.Contains);
             }
 
-            _validatedCoreModulesLastState = new HashSet<ICoreModule>(_validatedCoreModules);
+            finally
+            {
+                _isInitializing = false;
+            }
         }
 
+        public void AddCoreModule(CoreModule module)
+        {
+            if (_isInitializing)
+            {
+                Debug.LogWarning
+                    ($"{module} не может быть добавлен, так как происходит иницализация модулей.");
+                return;
+            }
+
+            if (module && !coreModules.Contains(module))
+            {
+                coreModules.Add(module);
+                InitializeCoreModules();
+            }
+            else
+            {
+                Debug.LogWarning
+                    ($"{module} не может быть добавлен, тк имеет значение null или уже существует");
+                return;
+            }
+        }
+
+        private List<CoreModule> _modulesToRemoveAfterInitialization = new List<CoreModule>();
+
+        public bool RemoveCoreModule(CoreModule module)
+        {
+            if (!module || !coreModules.Contains(module))
+            {
+                Debug.LogWarning
+                    ($"{module} не может быть удалён, так как не найден в списке coreModules или имеет значение null");
+                return false;
+            }
+
+            if (_isInitializing)
+            {
+                if (!_modulesToRemoveAfterInitialization.Contains(module))
+                {
+                    _modulesToRemoveAfterInitialization.Add(module);
+                    Debug.Log
+                    ($"{module} не может быть удалён сейчас, " +
+                     $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
+                }
+                return true;
+            }
+
+            coreModules.Remove(module);
+            InitializeCoreModules();
+            return true;
+        }
         #endregion
 
         private bool GetComponents()
