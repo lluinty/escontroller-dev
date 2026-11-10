@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Core.CoreModules
 {
-    public class ActionsPermissionsController : MonoBehaviour, ICoreModule
+    public class ActionsPermissionsController : CoreModule
     {
         private bool _isInitialized;
         private readonly Dictionary<ActionId, HashSet<string>> _blockers = new();
@@ -96,13 +96,13 @@ namespace Core.CoreModules
         
         
         #region Initialization API
-        public bool Initialize(CoreController core)
+        public override bool Initialize(CoreController core)
         {
             _isInitialized = true;
             return true;
         }
         
-        public void Deinitialize()
+        public override void Deinitialize()
         {
             _isInitialized = false;
         }
