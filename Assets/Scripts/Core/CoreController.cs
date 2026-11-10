@@ -101,11 +101,22 @@ namespace Core
                 }
 
                 //Удаление модулей нуждающихся в удалении после инициализации.
-                foreach (var module in _modulesToRemoveAfterInitialization)
+                while (_modulesToRemoveAfterInitialization.Count > 0)
                 {
-                    module.Deinitialize();
-                    modulesToRemove.Add(module);
+                    var modulesLocal = _modulesToRemoveAfterInitialization;
+                    _modulesToRemoveAfterInitialization = new List<CoreModule>();
+                    foreach (var module in modulesLocal)
+                    {
+                        if (!module) continue;
+                        
+                        coreModules.Remove(module);
+                        if(_initializedCoreModules.Remove(module))
+                        {
+                            module.Deinitialize();
+                        }
+                    }
                 }
+
 
                 _modulesToRemoveAfterInitialization.Clear();
                 coreModules.RemoveAll(modulesToRemove.Contains);
@@ -153,10 +164,13 @@ namespace Core
 
             if (_isInitializing)
             {
-                _modulesToRemoveAfterInitialization.Add(module);
-                Debug.Log
-                ($"{module} не может быть удалён сейчас, " +
-                 $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
+                if (!_modulesToRemoveAfterInitialization.Contains(module))
+                {
+                    _modulesToRemoveAfterInitialization.Add(module);
+                    Debug.Log
+                    ($"{module} не может быть удалён сейчас, " +
+                     $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
+                }
                 return true;
             }
 
