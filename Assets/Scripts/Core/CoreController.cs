@@ -10,7 +10,7 @@ namespace Core
         private List<CoreModule> _initializedCoreModules = new List<CoreModule>();
         public IReadOnlyCollection<CoreModule> CoreModules => coreModules;
         public IReadOnlyCollection<CoreModule> InitializedCoreModules => _initializedCoreModules;
-        
+
 
         private bool _isInitializing;
 
@@ -38,6 +38,7 @@ namespace Core
 
 
         #region Modules Initialization
+
         private void InitializeCoreModules()
         {
             if (_isInitializing)
@@ -50,7 +51,7 @@ namespace Core
                 _isInitializing = true;
                 var modulesToRemove = new List<CoreModule>();
                 var initializedModulesToRemove = new List<CoreModule>();
-                
+
                 //Инициализация модулей.
                 foreach (var module in coreModules)
                 {
@@ -76,7 +77,7 @@ namespace Core
                         modulesToRemove.Add(module);
                     }
                 }
-                
+
                 //Деинициализация и удаление уже неиспользуемых модулей. 
                 foreach (var module in _initializedCoreModules)
                 {
@@ -98,17 +99,15 @@ namespace Core
                         initializedModulesToRemove.Add(module);
                     }
                 }
-                
+
                 //Удаление модулей нуждающихся в удалении после инициализации.
                 foreach (var module in _modulesToRemoveAfterInitialization)
                 {
-                    if (module)
-                    {
-                        module.Deinitialize();
-                    }
+                    module.Deinitialize();
                     modulesToRemove.Add(module);
                 }
-                
+
+                _modulesToRemoveAfterInitialization.Clear();
                 coreModules.RemoveAll(modulesToRemove.Contains);
                 _initializedCoreModules.RemoveAll(initializedModulesToRemove.Contains);
             }
@@ -141,36 +140,31 @@ namespace Core
                 return false;
             }
         }
-        
-        private List<CoreModule> _modulesToRemoveAfterInitialization = new List<CoreModule>(); 
+
+        private List<CoreModule> _modulesToRemoveAfterInitialization = new List<CoreModule>();
+
         public bool RemoveCoreModule(CoreModule module)
         {
-            if (_isInitializing)
-            {
-                if (!_modulesToRemoveAfterInitialization.Contains(module))
-                {
-                    _modulesToRemoveAfterInitialization.Add(module);
-                }
-                Debug.Log
-                    ($"{module} не может быть удалён сейчас, " +
-                     $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
-                return true;
-            }
-
-            if (coreModules.Contains(module) && module)
-            {
-                coreModules.Remove(module);
-                InitializeCoreModules();
-                return true;
-            }
-            else
+            if (!module || !coreModules.Contains(module))
             {
                 Debug.LogWarning
-                    ($"{module} не может быть удалён, тк не найден в списке coreModules или имеет значение null");
+                    ($"{module} не может быть удалён, так как не найден в списке coreModules или имеет значение null");
                 return false;
             }
-        }
 
+            if (_isInitializing)
+            {
+                _modulesToRemoveAfterInitialization.Add(module);
+                Debug.Log
+                ($"{module} не может быть удалён сейчас, " +
+                 $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
+                return true;
+            }
+
+            coreModules.Remove(module);
+            InitializeCoreModules();
+            return true;
+        }
         #endregion
 
         private bool GetComponents()
