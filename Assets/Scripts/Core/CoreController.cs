@@ -34,6 +34,10 @@ namespace Core
             }
         }
 
+        private void OnValidate()
+        {
+            if(_initializedCoreModules != coreModules) InitializeCoreModules();
+        }
         #endregion
 
 
