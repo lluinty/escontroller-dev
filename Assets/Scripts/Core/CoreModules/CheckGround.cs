@@ -55,6 +55,7 @@ namespace Core.CoreModules
             {
                 Debug.LogError
                     ($"{this} не смог инициализироваться в следствии отсутвия необходимых локальных компонентов");
+                return false;
             }
             if (!core)
             {
