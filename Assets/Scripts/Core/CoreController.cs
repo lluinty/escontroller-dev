@@ -118,26 +118,25 @@ namespace Core
             }
         }
 
-        public bool AddCoreModule(CoreModule module)
+        public void AddCoreModule(CoreModule module)
         {
             if (_isInitializing)
             {
                 Debug.LogWarning
                     ($"{module} не может быть добавлен, так как происходит иницализация модулей.");
-                return false;
+                return;
             }
 
             if (module && !coreModules.Contains(module))
             {
                 coreModules.Add(module);
                 InitializeCoreModules();
-                return true;
             }
             else
             {
                 Debug.LogWarning
                     ($"{module} не может быть добавлен, тк имеет значение null или уже существует");
-                return false;
+                return;
             }
         }
 
