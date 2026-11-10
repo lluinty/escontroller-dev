@@ -96,9 +96,10 @@ namespace Core.CoreModules
         
         #region Initialization API
 
-        public void Initialize(CoreController core)
+        public bool Initialize(CoreController core)
         {
             _isInitialized = true;
+            return true;
         }
 
         public void Deinitialize()

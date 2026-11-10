@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 
 namespace Core.CoreModules
@@ -7,7 +6,6 @@ namespace Core.CoreModules
     {
         #region Variables
         private bool _isInitialized;
-        
         private CoreController _coreController;
         private Rigidbody _rigidbody;
 
@@ -41,30 +39,40 @@ namespace Core.CoreModules
             }
             else
             {
-                Debug.LogError($"{this} haven't access to Rigidbody.");
-                RequestToRemoveMe();
+                Debug.LogError
+                    ($"{this} был инициализирован ранее, но не может продолжать работу, " +
+                     $"так как утерян доступ к Rigidbody");
+                _coreController.RemoveCoreModule(this);
             }
         }
         #endregion
         
         #region Initialization API
+
         public override bool Initialize(CoreController core)
         {
-            _coreController = core;
-            
-            if (!_coreController)
-            {
-                Debug.LogError($"{this} haven't access to CoreController.");
-                Deinitialize();
-            }
-            
-            _rigidbody = core.CoreRigidbody;
-            
             if (!CheckComponents())
             {
-                RequestToRemoveMe();
+                Debug.LogError
+                    ($"{this} не смог инициализироваться в следствии отсутвия необходимых локальных компонентов");
             }
-
+            if (!core)
+            {
+                Debug.LogError
+                    ($"{this} не смог инициализироваться, так как не получил доступ к CoreController");
+                return false;
+            }
+            
+            _coreController = core;
+            _rigidbody = core.CoreRigidbody;
+            
+            if (!_rigidbody)
+            {
+                Debug.LogError
+                    ($"{this} не смог инициализироваться, так как не получил доступ к CoreRigidbody");
+                return false;
+            }
+            
             _isInitialized = true;
             return true;
         }
@@ -76,39 +84,16 @@ namespace Core.CoreModules
             _isInitialized = false;
         }
         #endregion
-        
-        
-        
-        #region Private Methods
-        private void RequestToRemoveMe()
-        {
-            if (!_coreController)
-            {
-                Debug.LogWarning(
-                    $" Cannot remove {this} from CoreModules, because CoreController reference is missing.");
-                Deinitialize();
-                return;
-            }
-
-            _coreController.RemoveCoreModule(this);
-        }
 
         private bool CheckComponents()
         {
-            if (_rigidbody == null)
-            {
-                Debug.LogError($"{this} haven't access to CoreRigidbody.");
-                return false;
-            }
-
             if (groundCheckMask == 0)
             {
-                Debug.LogError($"GroundCheckMask not found on {this}");
+                Debug.LogError
+                    ($"GroundCheckMask не назачен на {this}, пожалуйста, добавтье его вручную.");
                 return false;
             }
-
             return true;
         }
-        #endregion
     }
 }

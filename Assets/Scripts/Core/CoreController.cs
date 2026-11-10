@@ -10,6 +10,7 @@ namespace Core
         private List<CoreModule> _initializedCoreModules = new List<CoreModule>();
         public IReadOnlyCollection<CoreModule> CoreModules => coreModules;
         public IReadOnlyCollection<CoreModule> InitializedCoreModules => _initializedCoreModules;
+        
 
         private bool _isInitializing;
 
@@ -49,6 +50,8 @@ namespace Core
                 _isInitializing = true;
                 var modulesToRemove = new List<CoreModule>();
                 var initializedModulesToRemove = new List<CoreModule>();
+                
+                //Инициализация модулей.
                 foreach (var module in coreModules)
                 {
                     if (module != null)
@@ -73,7 +76,8 @@ namespace Core
                         modulesToRemove.Add(module);
                     }
                 }
-
+                
+                //Деинициализация и удаление уже неиспользуемых модулей. 
                 foreach (var module in _initializedCoreModules)
                 {
                     if (module != null)
@@ -94,7 +98,17 @@ namespace Core
                         initializedModulesToRemove.Add(module);
                     }
                 }
-
+                
+                //Удаление модулей нуждающихся в удалении после инициализации.
+                foreach (var module in _modulesToRemoveAfterInitialization)
+                {
+                    if (module)
+                    {
+                        module.Deinitialize();
+                    }
+                    modulesToRemove.Add(module);
+                }
+                
                 coreModules.RemoveAll(modulesToRemove.Contains);
                 _initializedCoreModules.RemoveAll(initializedModulesToRemove.Contains);
             }
@@ -127,14 +141,20 @@ namespace Core
                 return false;
             }
         }
-
+        
+        private List<CoreModule> _modulesToRemoveAfterInitialization = new List<CoreModule>(); 
         public bool RemoveCoreModule(CoreModule module)
         {
             if (_isInitializing)
             {
-                Debug.LogWarning
-                    ($"{module} не может быть удалён , так как происходит иницализация модулей.");
-                return false;
+                if (!_modulesToRemoveAfterInitialization.Contains(module))
+                {
+                    _modulesToRemoveAfterInitialization.Add(module);
+                }
+                Debug.Log
+                    ($"{module} не может быть удалён сейчас, " +
+                     $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
+                return true;
             }
 
             if (coreModules.Contains(module) && module)
