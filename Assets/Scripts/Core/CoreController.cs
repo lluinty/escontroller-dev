@@ -59,15 +59,10 @@ namespace Core
                     {
                         if (!_initializedCoreModules.Contains(module))
                         {
-                            if (module.Initialize(this))
+                            if (!TryInitializeCoreModule(module))
                             {
-                                _initializedCoreModules.Add(module);
-                            }
-                            else
-                            {
-                                Debug.LogWarning($"{module} вернул false при попытке инициализации.");
-                                module.Deinitialize();
                                 modulesToRemove.Add(module);
+                                TryDeinitializeCoreModule(module);
                             }
                         }
                     }
@@ -88,8 +83,8 @@ namespace Core
                             Debug.Log
                             ($"{module} находиться в _initializedCoreModules, но не найден в coreModules" +
                              $", следовательно будет удалён.");
-                            module.Deinitialize();
                             initializedModulesToRemove.Add(module);
+                            TryDeinitializeCoreModule(module);
                         }
                     }
                     else
@@ -108,15 +103,14 @@ namespace Core
                     foreach (var module in modulesLocal)
                     {
                         if (!module) continue;
-                        
+
                         coreModules.Remove(module);
-                        if(_initializedCoreModules.Remove(module))
+                        if (_initializedCoreModules.Remove(module))
                         {
-                            module.Deinitialize();
+                            TryDeinitializeCoreModule(module);
                         }
                     }
                 }
-
 
                 _modulesToRemoveAfterInitialization.Clear();
                 coreModules.RemoveAll(modulesToRemove.Contains);
@@ -126,6 +120,40 @@ namespace Core
             finally
             {
                 _isInitializing = false;
+            }
+        }
+
+        private bool TryInitializeCoreModule(CoreModule module)
+        {
+            try
+            {
+                if (module.Initialize(this))
+                {
+                    _initializedCoreModules.Add(module);
+                    return true;
+                }
+
+                Debug.LogWarning
+                    ($"Не удалось инициализировать модуль {module}");
+                return false;
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError
+                    ($"При попытке инициализации модуль {module} выкинул исключение {exception}");
+                return false;
+            }
+        }
+
+        private void TryDeinitializeCoreModule(CoreModule module)
+        {
+            try
+            {
+                module.Deinitialize();
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError($"При попытке деинициализации модуль {module} выкинул исключение {exception}");
             }
         }
 
@@ -171,6 +199,7 @@ namespace Core
                     ($"{module} не может быть удалён сейчас, " +
                      $"так как происходит иницализация модулей. Модуль будет удалён после инициализации.");
                 }
+
                 return true;
             }
 
@@ -178,6 +207,7 @@ namespace Core
             InitializeCoreModules();
             return true;
         }
+
         #endregion
 
         private bool GetComponents()
