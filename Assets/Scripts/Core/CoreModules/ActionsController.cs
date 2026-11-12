@@ -5,11 +5,26 @@ namespace Core.CoreModules
 {
     public class ActionsController : CoreModule
     {
+        private CoreController _coreController;
         private bool _isInitialized;
-        
-        
-        
+
+
+        #region Unity Methods
+
+        private void OnDestroy()
+        {
+            if (!_coreController.RemoveCoreModule(this))
+            {
+                Debug.LogWarning($"Не получилось корректно деинициализировать модуль по случаю его уничтожеения.");
+            }
+
+            _isInitialized = false;
+        }
+
+        #endregion
+
         #region Public API
+
         private readonly Dictionary<ActionId, HashSet<string>> _actionOwners = new();
         public IReadOnlyCollection<ActionId> CurrentActions => _actionOwners.Keys;
 
@@ -21,13 +36,13 @@ namespace Core.CoreModules
                                  $" AuthorID: {authorId}");
                 return;
             }
-            
+
             if (!actionId.IsValid)
             {
                 Debug.LogWarning($"Tried to add action using non-existing actionId {actionId}");
                 return;
             }
-            
+
             if (!string.IsNullOrWhiteSpace(authorId))
             {
                 if (!_actionOwners.TryGetValue(actionId, out var authors))
@@ -61,7 +76,7 @@ namespace Core.CoreModules
                 Debug.LogWarning($"Tried to remove action using non-existing actionId {actionId}");
                 return;
             }
-            
+
             if (!string.IsNullOrWhiteSpace(authorId))
             {
                 if (!_actionOwners.TryGetValue(actionId, out var authors))
@@ -90,22 +105,31 @@ namespace Core.CoreModules
                 Debug.LogWarning($"Something tried to remove action using non-existing authorId {authorId}");
             }
         }
+
         #endregion
-        
-        
-        
+
+
         #region Initialization API
 
         public override bool Initialize(CoreController core)
         {
+            if (!core)
+            {
+                Debug.LogWarning("Tried to initialize ActionsController with null core");
+                return false;
+            }
+
+            _coreController = core;
             _isInitialized = true;
             return true;
         }
 
         public override void Deinitialize()
         {
+            _coreController = null;
             _isInitialized = false;
         }
+
         #endregion
     }
 }

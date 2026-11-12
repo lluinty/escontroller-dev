@@ -6,16 +6,30 @@ namespace Core.CoreModules
     public class ActionsPermissionsController : CoreModule
     {
         private bool _isInitialized;
+        private CoreController _coreController;
         private readonly Dictionary<ActionId, HashSet<string>> _blockers = new();
 
-        
-        
+        #region Unity Methods
+
+        private void OnDestroy()
+        {
+            if (!_coreController.RemoveCoreModule(this))
+            {
+                Debug.LogWarning($"Не получилось корректно деинициализировать модуль по случаю его уничтожеения.");
+            }
+
+            _isInitialized = false;
+        }
+
+        #endregion
+
         #region Public API
+
         public bool CanPerform(ActionId action)
         {
             return !_blockers.TryGetValue(action, out var blockers) || blockers.Count == 0;
         }
-        
+
         public void BlockAction(ActionId action, string blockerId)
         {
             if (!_isInitialized)
@@ -23,7 +37,7 @@ namespace Core.CoreModules
                 Debug.LogWarning($"{this} is not initialized, can't block action {action}");
                 return;
             }
-            
+
             if (!action.IsValid)
             {
                 Debug.LogWarning($"Tried to block action using non-existing actionId {action}");
@@ -63,13 +77,13 @@ namespace Core.CoreModules
                 Debug.LogWarning($"{this} is not initialized, can't unblock action {action}");
                 return;
             }
-            
+
             if (!action.IsValid)
             {
                 Debug.LogWarning($"Tried to unblock action using non-existing actionId {action}");
                 return;
             }
-            
+
             if (!string.IsNullOrWhiteSpace(blockerId))
             {
                 if (_blockers.TryGetValue(action, out var blockers))
@@ -91,21 +105,31 @@ namespace Core.CoreModules
                 }
             }
         }
+
         #endregion
 
-        
-        
+
         #region Initialization API
+
         public override bool Initialize(CoreController core)
         {
+            if (!core)
+            {
+                Debug.LogWarning("Tried to initialize ActionsPermissionsController with null core");
+                return false;
+            }
+
+            _coreController = core;
             _isInitialized = true;
             return true;
         }
-        
+
         public override void Deinitialize()
         {
+            _coreController = null;
             _isInitialized = false;
         }
+
         #endregion
     }
 }
