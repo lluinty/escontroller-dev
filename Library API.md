@@ -1,6 +1,6 @@
 # Library API
 
-Справочник публичного API библиотеки `escontroller`. Документ отражает исходный код ветки `main` на момент последней проверки.
+Справочник публичного API библиотеки `escontroller`. Документ сверён с исходным кодом ветки `main` на коммите [`64a6589`](https://github.com/lluinty/escontroller-dev/commit/64a6589363e6de6fe545bb61c33dc21e3e7dd617) от 12 ноября 2026 года.
 
 > API находится в активной разработке. При расхождении документации и реализации источником истины для фактических сигнатур и поведения являются исходники.
 
@@ -9,6 +9,7 @@
 - [Core](#core)
   - [CoreController](#corecontroller)
   - [ICoreModule](#icoremodule)
+  - [CoreModule](#coremodule)
   - [ActionId](#actionid)
   - [MovementActions](#movementactions)
 - [CoreModules](#coremodules)
@@ -22,33 +23,37 @@
 
 ## Core
 
-Фундаментальные типы и механизмы библиотеки. `Core` не содержит конкретные реализации игровых систем.
+Фундаментальные типы библиотеки. `Core` предоставляет общий компонент персонажа, контракт и базовый класс подключаемых модулей, а также общий тип идентификатора действия.
 
 ### CoreController
 
-`CoreController` — центральный компонент ядра персонажа. Он предоставляет базовые данные и управляет жизненным циклом подключённых `ICoreModule`. Реализация Action Registry и Action Permission находится в отдельных модулях раздела [CoreModules](#coremodules), а не в самом `CoreController`.
+`CoreController` — центральный компонент ядра персонажа. Он предоставляет общие зависимости и управляет жизненным циклом подключённых `CoreModule`. Реализации Action Registry и Action Permission находятся в отдельных модулях раздела [CoreModules](#coremodules).
 
 **Исходный файл:** [`Assets/Scripts/Core/CoreController.cs`](Assets/Scripts/Core/CoreController.cs)  
 **Namespace:** `Core`  
 **Тип:** `public class CoreController : MonoBehaviour`  
-**Зависимости:** компонент `Rigidbody`; подключаемые компоненты должны реализовывать [`ICoreModule`](#icoremodule).
+**Зависимости:** компонент `Rigidbody` на том же GameObject либо назначенная ссылка на него в Inspector.
 
 #### Назначение и ответственность
 
-- Предоставляет Rigidbody персонажа через `CoreRigidbody`.
-- Хранит список компонентов-кандидатов в Core Modules и предоставляет его для чтения.
-- Проверяет соответствие подключаемых компонентов интерфейсу `ICoreModule`.
+- Предоставляет ссылку на физическое тело через `CoreRigidbody`.
+- Хранит список подключённых `CoreModule`.
+- Отдельно учитывает модули, успешно прошедшие инициализацию.
 - Вызывает `Initialize(this)` при подключении модуля и `Deinitialize()` при отключении.
-- Синхронизирует набор проверенных и инициализированных модулей.
+- Обрабатывает ошибки инициализации и деинициализации модулей, не прерывая обработку остальных модулей.
+- Откладывает запросы на удаление модуля, если они поступили во время прохода инициализации.
 
 #### Жизненный цикл
 
-1. В `Awake()` ядро проверяет ссылку на Rigidbody. Если ссылка не назначена в Inspector, выполняется поиск `Rigidbody` на том же GameObject.
-2. Если Rigidbody не найден, `CoreController` выводит ошибку, отключает себя и не инициализирует модули.
-3. После успешной проверки Rigidbody ядро инициализирует проверенные модули.
-4. В `Update()` ядро обнаруживает изменение набора проверенных модулей и синхронизирует инициализацию.
-5. `AddCoreModule()` и `RemoveCoreModule()` запускают синхронизацию сразу после изменения списка.
-6. `OnValidate()` в редакторе повторно проверяет список и удаляет из него пустые ссылки и компоненты, не реализующие `ICoreModule`.
+1. В `Awake()` вызывается `GetComponents()`.
+2. Если поле `rigidbody` не назначено, ядро ищет `Rigidbody` на том же GameObject через `GetComponent<Rigidbody>()`.
+3. Если Rigidbody не найден, выводится ошибка, `CoreController` отключается (`enabled = false`), а модули не инициализируются.
+4. После успешного получения Rigidbody вызывается `InitializeCoreModules()`.
+5. При успешной инициализации модуль добавляется в `InitializedCoreModules`. Если `Initialize()` вернул `false` или выбросил исключение, модуль не считается инициализированным: ядро выводит сообщение и запрашивает его деинициализацию.
+6. `AddCoreModule()` и `RemoveCoreModule()` запускают повторную синхронизацию после изменения списка.
+7. Если модуль запрашивает собственное удаление во время инициализации, запрос помещается в очередь и обрабатывается после текущего прохода.
+
+`InitializeCoreModules()` не вызывается автоматически из `Update()` или `OnValidate()` в текущей реализации.
 
 #### Public API
 
@@ -57,68 +62,72 @@
 **Тип:** `Rigidbody`  
 **Доступ:** только чтение.
 
-Ссылка на физическое тело персонажа. Может быть назначена через Inspector. Если поле не назначено, `CoreController` ищет компонент `Rigidbody` на том же GameObject в `Awake()`.
+Ссылка на физическое тело персонажа. Может быть назначена через Inspector. Если ссылка не назначена, ядро ищет компонент `Rigidbody` на том же GameObject в `Awake()`.
 
-**Примеры:**
+**Пример:**
 
 ```csharp
 Rigidbody body = core.CoreRigidbody;
 body.AddForce(Vector3.up * 5f, ForceMode.Impulse);
 ```
 
-```csharp
-if (core.CoreRigidbody != null)
-{
-    Vector3 velocity = core.CoreRigidbody.linearVelocity;
-}
-```
-
-**Ограничения:** при отсутствии назначенного или найденного Rigidbody компонент `CoreController` отключается. Примеры используют API `Rigidbody` Unity 6.
+**Ограничения:** если Rigidbody отсутствует, `CoreController` отключается и не выполняет инициализацию модулей. Примеры используют API `Rigidbody` Unity 6.
 
 ##### `CoreModules`
 
-**Тип:** `IReadOnlyList<MonoBehaviour>`  
-**Доступ:** только чтение.
+**Тип:** `IReadOnlyCollection<CoreModule>`  
+**Доступ:** только чтение через объявленный интерфейс.
 
-Список компонентов, назначенных в качестве Core Modules. Свойство возвращает read-only представление внутреннего списка: вызывающий код не может изменять его через этот интерфейс. Изменения самого списка, выполненные `CoreController`, отражаются в представлении.
+Коллекция модулей, присутствующих в текущем списке `coreModules`. Она не означает, что каждый элемент уже успешно инициализирован: для этого предназначено свойство `InitializedCoreModules`.
 
-В список должны попадать компоненты, реализующие `ICoreModule`. В runtime добавление следует выполнять через `AddCoreModule()`, а удаление — через `RemoveCoreModule()`.
+Свойство возвращает read-only представление внутреннего списка. Это не отдельная копия: изменения списка ядром отражаются в доступной коллекции.
 
-**Примеры:**
+**Пример:**
 
 ```csharp
-foreach (MonoBehaviour module in core.CoreModules)
+foreach (CoreModule module in core.CoreModules)
 {
     Debug.Log(module.name);
 }
 ```
 
+##### `InitializedCoreModules`
+
+**Тип:** `IReadOnlyCollection<CoreModule>`  
+**Доступ:** только чтение через объявленный интерфейс.
+
+Коллекция модулей, для которых `Initialize(this)` завершился успешно и которые были добавлены во внутренний список `_initializedCoreModules`.
+
+Модуль, чья инициализация вернула `false` или завершилась исключением, в эту коллекцию не попадает.
+
+**Пример:**
+
 ```csharp
-bool hasGroundCheck = core.CoreModules
-    .Any(module => module is CheckGround);
+foreach (CoreModule module in core.InitializedCoreModules)
+{
+    Debug.Log($"Initialized: {module.name}");
+}
 ```
 
-Для второго примера требуется `using System.Linq;`.
-
-##### `AddCoreModule(MonoBehaviour module)`
-
-**Назначение:** добавить компонент в список Core Modules и подключить его, если он реализует `ICoreModule`.
+##### `AddCoreModule(CoreModule module)`
 
 **Сигнатура:**
 
 ```csharp
-public void AddCoreModule(MonoBehaviour module)
+public void AddCoreModule(CoreModule module)
 ```
+
+Добавляет модуль в список `coreModules` и запускает синхронизацию инициализации.
 
 **Параметры:**
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `module` | `MonoBehaviour` | Компонент-кандидат. `null`, уже добавленный компонент и компонент без `ICoreModule` игнорируются. |
+| `module` | `CoreModule` | Компонент-модуль. `null` и уже присутствующий в списке экземпляр отклоняются. |
 
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — подключение заранее полученной ссылки:**
+**Пример:**
 
 ```csharp
 [SerializeField] private CoreController core;
@@ -130,77 +139,70 @@ private void Start()
 }
 ```
 
-**Пример 2 — подключение компонента с того же GameObject:**
+**Поведение и ограничения:**
 
-```csharp
-private void Start()
-{
-    CheckGround groundModule = GetComponent<CheckGround>();
-    core.AddCoreModule(groundModule);
-}
-```
+- Метод принимает `CoreModule`, а не произвольный `MonoBehaviour` или объект, который только реализует `ICoreModule`.
+- Если передан `null` или модуль уже находится в `coreModules`, выводится предупреждение.
+- Если вызов происходит во время инициализации модулей (`_isInitializing == true`), добавление отклоняется и выводится предупреждение.
+- При успешном добавлении вызывается `InitializeCoreModules()`. Если `Initialize()` модуля не удаётся, ядро пытается вызвать `Deinitialize()` и удаляет модуль из списка.
+- Метод не возвращает признак успешного добавления. При необходимости результат можно проверить через `CoreModules` и `InitializedCoreModules`.
 
-**Ограничения и примечания:**
-
-- Метод принимает `MonoBehaviour`, а не произвольную реализацию `ICoreModule`. Это позволяет проверить, что модуль является компонентом Unity.
-- При `null`, дубликате или отсутствии `ICoreModule` метод завершает работу без изменения списка.
-- При успешном добавлении модуль проверяется и синхронизация инициализации запускается немедленно.
-- Метод не возвращает признак успешного добавления. При необходимости вызывающий код может проверить `CoreModules`.
-- Не следует добавлять модули до готовности `CoreController` в `Awake()`, если их `Initialize()` зависит от уже разрешённых зависимостей ядра, включая `CoreRigidbody`.
-
-##### `RemoveCoreModule(ICoreModule module)`
-
-**Назначение:** удалить Core Module из набора проверенных модулей и исходного списка, после чего синхронизировать инициализацию.
+##### `RemoveCoreModule(CoreModule module)`
 
 **Сигнатура:**
 
 ```csharp
-public void RemoveCoreModule(ICoreModule module)
+public bool RemoveCoreModule(CoreModule module)
 ```
+
+Удаляет модуль из списка `coreModules` и синхронизирует состояние инициализированных модулей.
 
 **Параметры:**
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `module` | `ICoreModule` | Модуль, который требуется отключить. Передача `null` игнорируется. |
+| `module` | `CoreModule` | Модуль, который требуется отключить. |
 
-**Возвращает:** ничего (`void`).
+**Возвращает:**
 
-**Пример 1 — удаление модуля проверки земли:**
+- `true` — запрос на удаление принят;
+- `false` — передан `null` либо модуль не найден в `coreModules`.
 
-```csharp
-core.RemoveCoreModule(checkGround);
-```
-
-**Пример 2 — удаление модуля реестра действий:**
+**Пример:**
 
 ```csharp
-core.RemoveCoreModule(actionsController);
+bool removed = core.RemoveCoreModule(checkGround);
 ```
 
-**Ограничения и примечания:**
+**Поведение и ограничения:**
 
-- Если переданный модуль отсутствует в наборе проверенных модулей, выводится предупреждение.
-- Если модуль является существующим компонентом `MonoBehaviour`, он также удаляется из исходного списка `coreModules`.
-- Для отключённого инициализированного модуля вызывается `Deinitialize()`.
-- Метод не уничтожает сам компонент Unity и не вызывает `Destroy()`.
+- Если модуль равен `null` или отсутствует в `coreModules`, метод выводит предупреждение и возвращает `false`.
+- Если метод вызван вне процесса инициализации, модуль сразу удаляется из `coreModules`, после чего вызывается `InitializeCoreModules()`. Инициализированный модуль при синхронизации получает вызов `Deinitialize()`.
+- Если метод вызван во время инициализации, модуль добавляется в очередь `_modulesToRemoveAfterInitialization`. Метод возвращает `true`, но фактическое удаление выполняется после текущего прохода.
+- Повторный запрос на удаление того же модуля во время инициализации не создаёт дубликат в очереди.
+- Метод не уничтожает компонент Unity и не вызывает `Destroy()`.
+
+#### Обработка ошибок и реентерабельность
+
+- Исключение из `Initialize()` перехватывается ядром. Оно логируется, после чего модуль считается не прошедшим инициализацию.
+- Если `Initialize()` возвращает `false` или выбрасывает исключение, ядро дополнительно пытается вызвать `Deinitialize()` для очистки частично установленного состояния.
+- Исключение из `Deinitialize()` перехватывается и логируется.
+- Повторный вход в `InitializeCoreModules()` во время уже выполняющейся синхронизации игнорируется.
+- Вызов `AddCoreModule()` в процессе инициализации отклоняется; `RemoveCoreModule()` в этот момент ставит запрос в очередь.
+
+**Практическое требование к модулю:** `Deinitialize()` должен быть безопасен и в случае частично выполненной инициализации, поскольку ядро вызывает его после неудачного `Initialize()`.
 
 **Tags:** `#core #controller #module-lifecycle`
 
 ### ICoreModule
 
-`ICoreModule` — контракт подключаемого модуля ядра. Реализация интерфейса должна находиться на компоненте `MonoBehaviour`, поскольку `CoreController` хранит модули как `MonoBehaviour`.
+`ICoreModule` — контракт подключаемого модуля ядра.
 
 **Исходный файл:** [`Assets/Scripts/Core/ICoreModule.cs`](Assets/Scripts/Core/ICoreModule.cs)  
 **Namespace:** `Core`  
 **Тип:** `public interface ICoreModule`
 
-#### Жизненный цикл
-
-- При подключении `CoreController` вызывает `Initialize(CoreController core)` и передаёт ссылку на ядро.
-- При отключении `CoreController` вызывает `Deinitialize()` без параметров.
-- `Deinitialize()` — отдельный метод интерфейса. Ядро не передаёт `null` в `Initialize()` при отключении.
-- Реализация должна освобождать собственные ссылки на ядро и связанные ресурсы в `Deinitialize()`.
+В текущей реализации `CoreController` хранит модули как `CoreModule` и принимает их через `AddCoreModule(CoreModule)`. Поэтому для подключения через штатный API недостаточно реализовать один `ICoreModule`: компонент должен наследоваться от `CoreModule`.
 
 #### Public API
 
@@ -209,42 +211,36 @@ core.RemoveCoreModule(actionsController);
 **Сигнатура:**
 
 ```csharp
-void Initialize(CoreController core);
+bool Initialize(CoreController core);
 ```
 
-**Назначение:** принять ссылку на `CoreController` и подготовить модуль к работе.
+Получает ссылку на ядро и выполняет подготовку модуля к работе.
 
 **Параметры:**
 
-| Параметр | Тип | Описание и ограничения |
+| Параметр | Тип | Описание |
 |---|---|---|
-| `core` | `CoreController` | Экземпляр ядра, который подключает модуль. При штатном вызове со стороны `CoreController` передаётся `this`. |
+| `core` | `CoreController` | Ядро, подключающее модуль. При штатном вызове со стороны `CoreController` передаётся `this`. |
 
-**Возвращает:** ничего (`void`).
+**Возвращает:**
 
-**Пример 1 — сохранение ссылки на ядро:**
+- `true` — модуль успешно инициализирован;
+- `false` — модуль не смог инициализироваться.
+
+**Пример:**
 
 ```csharp
-private CoreController _core;
-
-public void Initialize(CoreController core)
+public override bool Initialize(CoreController core)
 {
+    if (!core)
+        return false;
+
     _core = core;
+    return true;
 }
 ```
 
-**Пример 2 — получение общей зависимости:**
-
-```csharp
-private Rigidbody _body;
-
-public void Initialize(CoreController core)
-{
-    _body = core.CoreRigidbody;
-}
-```
-
-**Ограничения:** интерфейс не определяет механизм обработки ошибок инициализации. Проверку необходимых зависимостей выполняет сам модуль.
+Если метод вернул `false`, `CoreController` не добавляет модуль в `InitializedCoreModules`, пытается вызвать `Deinitialize()` и удаляет его из `CoreModules`.
 
 ##### `Deinitialize()`
 
@@ -254,34 +250,79 @@ public void Initialize(CoreController core)
 void Deinitialize();
 ```
 
-**Назначение:** отключить модуль и освободить ссылки и состояние, установленные во время инициализации.
+Отключает модуль и освобождает ссылки и состояние, установленные при инициализации.
 
 **Параметры:** отсутствуют.  
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — сброс ссылки на ядро:**
+**Пример:**
 
 ```csharp
-public void Deinitialize()
+public override void Deinitialize()
 {
-    _core = null;
-}
-```
-
-**Пример 2 — сброс нескольких зависимостей и состояния:**
-
-```csharp
-public void Deinitialize()
-{
-    _body = null;
     _core = null;
     _isInitialized = false;
 }
 ```
 
-**Примечания:** `CoreController` вызывает этот метод при удалении модуля из набора. Сам интерфейс не предписывает уничтожать компонент Unity.
+Реализация должна допускать повторный и безопасный вызов, в том числе после неудачного или частично завершённого `Initialize()`.
 
 **Tags:** `#core #module-contract #initialization`
+
+### CoreModule
+
+`CoreModule` — абстрактный базовый класс компонентов, подключаемых к `CoreController`.
+
+**Исходный файл:** [`Assets/Scripts/Core/CoreModule.cs`](Assets/Scripts/Core/CoreModule.cs)  
+**Namespace:** `Core`  
+**Тип:** `public abstract class CoreModule : MonoBehaviour, ICoreModule`
+
+Наследование от `CoreModule` одновременно делает компонент `MonoBehaviour` и реализует контракт `ICoreModule`. Именно этот базовый тип используется в `coreModules`, `InitializedCoreModules`, `AddCoreModule()` и `RemoveCoreModule()`.
+
+#### Public API
+
+Класс объявляет два абстрактных метода, которые обязан реализовать каждый конкретный модуль:
+
+```csharp
+public abstract bool Initialize(CoreController core);
+public abstract void Deinitialize();
+```
+
+**Пример реализации:**
+
+```csharp
+using UnityEngine;
+
+namespace Core.CoreModules
+{
+    public sealed class ExampleModule : CoreModule
+    {
+        private CoreController _core;
+
+        public override bool Initialize(CoreController core)
+        {
+            if (!core)
+                return false;
+
+            _core = core;
+            return true;
+        }
+
+        public override void Deinitialize()
+        {
+            _core = null;
+        }
+    }
+}
+```
+
+**Примечания:**
+
+- `CoreModule` не реализует конкретную игровую логику.
+- Модуль самостоятельно проверяет зависимости, необходимые для его работы.
+- Возвращаемое значение `Initialize()` сообщает ядру, удалось ли подключить модуль.
+
+**Tags:** `#core #module-base`
 
 ### ActionId
 
@@ -301,32 +342,28 @@ public void Deinitialize()
 public ActionId(string value)
 ```
 
-**Назначение:** создать идентификатор действия из строки.
-
-**Параметры:**
+Создаёт идентификатор действия из строки.
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `value` | `string` | Значение идентификатора. Не может быть `null` или пустой строкой. |
+| `value` | `string` | Не может быть `null` или пустой строкой. |
 
 **Возвращает:** новый `ActionId`.
 
-**Пример 1 — пользовательский идентификатор:**
+**Примеры:**
 
 ```csharp
 var interactAction = new ActionId("Interaction.Use");
 ```
-
-**Пример 2 — использование идентификатора в локальном каталоге:**
 
 ```csharp
 private static readonly ActionId OpenInventory =
     new ActionId("Inventory.Open");
 ```
 
-**Исключения:** `ArgumentException`, если `value` равен `null` или `string.Empty`.
+**Исключения:** `ArgumentException`, если `value` равен `null` или пустой строке.
 
-**Примечания:** строки, состоящие только из пробелов, конструктор принимает. Рекомендуется использовать непустые идентификаторы с устойчивым пространством имён, например `Inventory.Open`.
+Строки, состоящие только из пробелов, конструктор принимает.
 
 ##### `Value`
 
@@ -335,15 +372,9 @@ private static readonly ActionId OpenInventory =
 
 Исходное строковое значение идентификатора.
 
-**Примеры:**
-
 ```csharp
 var action = new ActionId("Inventory.Open");
 Debug.Log(action.Value);
-```
-
-```csharp
-string actionName = MovementActions.Jump.Value;
 ```
 
 ##### `IsValid`
@@ -351,24 +382,14 @@ string actionName = MovementActions.Jump.Value;
 **Тип:** `bool`  
 **Доступ:** только чтение.
 
-Возвращает `true`, если `Value` не равен `null` и не является пустой строкой. Проверка не отклоняет строки из одних пробелов.
-
-**Примеры:**
-
-```csharp
-var action = new ActionId("Inventory.Open");
-if (action.IsValid)
-{
-    Debug.Log(action.Value);
-}
-```
+Возвращает `true`, если `Value` не равен `null` и не является пустой строкой. Строки из одних пробелов считаются валидными.
 
 ```csharp
 ActionId uninitialized = default;
 bool isValid = uninitialized.IsValid; // false
 ```
 
-**Ограничения:** поскольку `ActionId` является структурой, `default(ActionId)` создать возможно. Такой идентификатор невалиден; перед передачей в API регистрации или блокировки действий проверяйте `IsValid`.
+Поскольку `ActionId` является структурой, значение `default(ActionId)` возможно, несмотря на проверки в конструкторе. Перед передачей идентификатора в API регистрации или блокировки действий проверяйте `IsValid`.
 
 ##### `Equals(ActionId other)`
 
@@ -376,55 +397,23 @@ bool isValid = uninitialized.IsValid; // false
 
 Сравнивает два идентификатора по строковому значению `Value`.
 
-**Примеры:**
-
 ```csharp
 var first = new ActionId("Movement.Jump");
 var second = new ActionId("Movement.Jump");
 bool equal = first.Equals(second); // true
 ```
 
-```csharp
-var move = new ActionId("Movement.Move");
-var jump = new ActionId("Movement.Jump");
-bool equal = move.Equals(jump); // false
-```
-
 ##### `Equals(object obj)`
 
 **Сигнатура:** `public override bool Equals(object obj)`
 
-Проверяет, является ли объект `ActionId` с тем же значением. Для объекта другого типа возвращает `false`.
-
-**Примеры:**
-
-```csharp
-object candidate = new ActionId("Movement.Run");
-bool equal = new ActionId("Movement.Run").Equals(candidate); // true
-```
-
-```csharp
-bool equal = new ActionId("Movement.Run").Equals("Movement.Run"); // false
-```
+Возвращает `true`, если объект является `ActionId` с тем же значением. Для объекта другого типа возвращает `false`.
 
 ##### `GetHashCode()`
 
 **Сигнатура:** `public override int GetHashCode()`
 
-Возвращает хеш-код строкового значения `Value`. Метод согласован с `Equals()` и позволяет использовать `ActionId` в `Dictionary` и `HashSet`.
-
-**Примеры:**
-
-```csharp
-var actions = new HashSet<ActionId>();
-actions.Add(MovementActions.Jump);
-bool containsJump = actions.Contains(MovementActions.Jump);
-```
-
-```csharp
-var owners = new Dictionary<ActionId, string>();
-owners[MovementActions.Move] = "KeyboardInput";
-```
+Возвращает хеш-код строкового значения `Value`. Согласован с `Equals()` и позволяет использовать `ActionId` в `Dictionary` и `HashSet`.
 
 ##### Операторы `==` и `!=`
 
@@ -435,17 +424,7 @@ public static bool operator ==(ActionId left, ActionId right);
 public static bool operator !=(ActionId left, ActionId right);
 ```
 
-Операторы сравнивают идентификаторы по `Value` и согласованы с `Equals()`.
-
-**Примеры:**
-
-```csharp
-bool sameAction = MovementActions.Move == new ActionId("Movement.Move");
-```
-
-```csharp
-bool differentActions = MovementActions.Move != MovementActions.Run;
-```
+Сравнивают идентификаторы по `Value` и согласованы с `Equals()`.
 
 **Общие примечания:** сравнение строк регистрозависимое. `Movement.Move` и `movement.move` являются разными идентификаторами.
 
@@ -459,9 +438,7 @@ bool differentActions = MovementActions.Move != MovementActions.Run;
 **Namespace:** `Core`  
 **Тип:** `public static class MovementActions`
 
-#### Public API
-
-Публичные поля имеют тип `ActionId` и объявлены как `static readonly`.
+Все поля имеют тип `ActionId` и объявлены как `public static readonly`.
 
 | Поле | Значение `ActionId.Value` | Назначение |
 |---|---|---|
@@ -479,7 +456,7 @@ permissions.BlockAction(MovementActions.Run, "Stamina");
 actionsController.AddAction(MovementActions.Jump, "PlayerMovement");
 ```
 
-**Примечания:** каталог содержит только три идентификатора. Он не реализует само перемещение, бег или прыжок и не задаёт игровую логику этих действий.
+Каталог содержит только идентификаторы. Он не реализует перемещение, бег или прыжок и не задаёт игровую логику этих действий.
 
 **Tags:** `#core #action-catalog #movement`
 
@@ -487,27 +464,29 @@ actionsController.AddAction(MovementActions.Jump, "PlayerMovement");
 
 ## CoreModules
 
-Общие подключаемые компоненты, реализующие `ICoreModule` и предоставляющие функциональность, которую могут использовать разные игровые системы.
+Общие подключаемые компоненты, наследующиеся от `CoreModule` и предоставляющие функциональность, которую могут использовать разные игровые системы.
 
 ### CheckGround
 
-`CheckGround` — модуль проверки контакта области под персонажем с объектами выбранных слоёв.
+`CheckGround` — модуль проверки пересечения сферы с объектами выбранных слоёв.
 
 **Исходный файл:** [`Assets/Scripts/Core/CoreModules/CheckGround.cs`](Assets/Scripts/Core/CoreModules/CheckGround.cs)  
 **Namespace:** `Core.CoreModules`  
-**Тип:** `public class CheckGround : MonoBehaviour, ICoreModule`  
-**Зависимости:** `CoreController` и доступный через него `Rigidbody`; ненулевая `groundCheckMask`.
+**Тип:** `public class CheckGround : CoreModule`  
+**Зависимости:** `CoreController`, доступный через него `Rigidbody` и ненулевая `groundCheckMask`.
 
-#### Назначение и ответственность
+#### Назначение и работа
 
-Компонент выполняет сферическую физическую проверку через `Physics.CheckSphere()` и предоставляет результат в `IsGrounded`. Проверка обновляется в `FixedUpdate()`.
+Компонент выполняет физическую проверку через `Physics.CheckSphere()` в `FixedUpdate()` и предоставляет результат в свойстве `IsGrounded`.
 
-#### Жизненный цикл
+Центр сферы вычисляется относительно позиции Rigidbody:
 
-- Добавляется в `CoreController` как Core Module.
-- В `Initialize(CoreController core)` получает ссылку на ядро и `core.CoreRigidbody`.
-- При отсутствии ядра, Rigidbody или корректной маски компонент выводит ошибку и запрашивает удаление из Core Modules.
-- В `Deinitialize()` сбрасывает ссылки на `CoreController` и `Rigidbody`, а также флаг инициализации.
+```csharp
+_rigidbody.position +
+    Vector3.up * (groundCheckRadius + groundCheckVerticalOffset)
+```
+
+Триггеры игнорируются через `QueryTriggerInteraction.Ignore`.
 
 #### Настройки Inspector
 
@@ -517,7 +496,7 @@ actionsController.AddAction(MovementActions.Jump, "PlayerMovement");
 | `groundCheckVerticalOffset` | Дополнительное вертикальное смещение центра сферы. |
 | `groundCheckMask` | Маска слоёв, с которыми выполняется проверка. |
 
-Центр сферы расположен на высоте `groundCheckRadius + groundCheckVerticalOffset` относительно позиции Rigidbody по оси `Vector3.up`. Триггеры игнорируются через `QueryTriggerInteraction.Ignore`.
+Поля сериализованы, но не входят в публичный API: они доступны для настройки через Inspector.
 
 #### Public API
 
@@ -526,80 +505,63 @@ actionsController.AddAction(MovementActions.Jump, "PlayerMovement");
 **Тип:** `bool`  
 **Доступ:** публичное чтение, приватная запись.
 
-Результат последней проверки земли. Значение `true` означает, что сфера пересекается с объектом из `groundCheckMask`; `false` означает, что пересечения нет.
-
-**Примеры:**
+Результат последней проверки. `true` означает, что сфера пересекается с объектом из `groundCheckMask`; `false` — что пересечения нет.
 
 ```csharp
-private void FixedUpdate()
+if (checkGround.IsGrounded)
 {
-    if (checkGround.IsGrounded)
-    {
-        Debug.Log("Character is grounded");
-    }
+    Debug.Log("Character is grounded");
 }
-```
-
-```csharp
-bool canStartJump = checkGround.IsGrounded
-                    && permissions.CanPerform(MovementActions.Jump);
 ```
 
 ##### `Initialize(CoreController core)`
 
-**Сигнатура:** `public void Initialize(CoreController core)`
+**Сигнатура:** `public override bool Initialize(CoreController core)`
 
-Получает ядро и его Rigidbody, проверяет обязательные зависимости и включает обновление проверки. Это реализация метода [`ICoreModule.Initialize`](#icoremodule). В обычном сценарии вызывается `CoreController`, а не пользовательским кодом напрямую.
+Проверяет маску слоёв и ссылку на ядро, получает `core.CoreRigidbody` и включает обновление проверки.
 
-**Параметр:** `core` — ядро, подключающее модуль.
+Возвращает `true`, если все обязательные зависимости доступны. При отсутствии маски, ядра или Rigidbody возвращает `false`.
 
-**Примеры вызова жизненного цикла:**
-
-```csharp
-core.AddCoreModule(checkGround);
-// CoreController вызовет checkGround.Initialize(this).
-```
-
-```csharp
-core.RemoveCoreModule(checkGround);
-// При отключении CoreController вызовет checkGround.Deinitialize().
-```
-
-**Ограничения:** при отсутствии `core`, `CoreRigidbody` или маски слоёв модуль не сможет выполнять проверку и запросит удаление из ядра.
+В штатном сценарии метод вызывается `CoreController`, когда модуль добавляется через `AddCoreModule()`.
 
 ##### `Deinitialize()`
 
-**Сигнатура:** `public void Deinitialize()`
+**Сигнатура:** `public override void Deinitialize()`
 
-Сбрасывает ссылки на ядро и Rigidbody и отключает обновление проверки. Реализация контракта [`ICoreModule.Deinitialize`](#icoremodule).
+Сбрасывает ссылки на `CoreController` и `Rigidbody`, а также флаг инициализации.
 
-**Примеры:** см. примеры жизненного цикла в описании [`Initialize(CoreController core)`](#initializecorecontroller-core). В штатном сценарии метод вызывает `CoreController` при отключении модуля.
+Метод не уничтожает компонент и не меняет настройки Inspector.
 
-**Примечания:** метод не уничтожает компонент и не меняет настройки Inspector.
+#### Примечания по жизненному циклу
+
+- Если после инициализации модуль теряет ссылку на Rigidbody, он выводит ошибку и вызывает `RemoveCoreModule(this)`.
+- В `OnDestroy()` модуль пытается удалить себя из `CoreController`.
+- Текущий `OnDestroy()` обращается к `_coreController` без предварительной проверки на `null`. Поэтому уничтожение экземпляра, который ещё не был успешно инициализирован и не получил ссылку на ядро, может привести к `NullReferenceException`. Это ограничение текущей реализации, а не гарантия безопасного автоматического отключения.
 
 **Tags:** `#core-modules #ground-check #physics`
 
 ### ActionsController
 
-`ActionsController` — модуль Action Registry. Он хранит действия, зарегистрированные одним или несколькими авторами. Название класса приведено по исходному коду; в текущей версии используется именно `ActionsController`, а не `ActionController`.
+`ActionsController` — модуль Action Registry. Он хранит действия, зарегистрированные одним или несколькими авторами.
 
 **Исходный файл:** [`Assets/Scripts/Core/CoreModules/ActionsController.cs`](Assets/Scripts/Core/CoreModules/ActionsController.cs)  
 **Namespace:** `Core.CoreModules`  
-**Тип:** `public class ActionsController : MonoBehaviour, ICoreModule`  
-**Зависимости:** подключение к `CoreController` через `ICoreModule`.
+**Тип:** `public class ActionsController : CoreModule`
 
 #### Назначение и ответственность
 
 - Регистрирует `ActionId` от имени автора `authorId`.
 - Поддерживает несколько авторов для одного идентификатора.
 - Удаляет действие из реестра только после удаления последнего автора.
-- Не управляет разрешением на выполнение действия. Для этого предназначен [`ActionsPermissionsController`](#actionspermissionscontroller).
+- Не управляет разрешением на выполнение действия. Для этого предназначен `ActionsPermissionsController`.
+
+`ActionsController` является отдельным компонентом. `CoreController` не предоставляет методы `AddAction()` или `RemoveAction()` и не проксирует `CurrentActions`. Вызывайте API непосредственно через ссылку на `ActionsController`.
 
 #### Жизненный цикл
 
-`Initialize(CoreController core)` разрешает операции регистрации и удаления. `Deinitialize()` запрещает эти операции. При деинициализации содержимое реестра не очищается.
+`Initialize(CoreController core)` проверяет ссылку на ядро, сохраняет её и разрешает операции регистрации и удаления. Метод возвращает `false`, если `core` равен `null`.
 
-**Важно:** `ActionsController` является отдельным компонентом. `CoreController` не предоставляет методы `AddAction()` или `RemoveAction()` и не проксирует `CurrentActions`. Вызывайте API непосредственно через ссылку на `ActionsController`.
+`Deinitialize()` очищает ссылку на ядро и отключает операции регистрации и удаления. Содержимое реестра при этом не очищается.
 
 #### Public API
 
@@ -608,21 +570,14 @@ core.RemoveCoreModule(checkGround);
 **Тип:** `IReadOnlyCollection<ActionId>`  
 **Доступ:** только чтение.
 
-Коллекция идентификаторов, зарегистрированных хотя бы одним автором. Возвращается read-only представление ключей внутреннего реестра; это представление отражает последующие изменения реестра, а не отдельная копия.
-
-**Примеры:**
+Коллекция идентификаторов, зарегистрированных хотя бы одним автором. Возвращается представление ключей внутреннего словаря, а не отдельная копия; оно отражает изменения реестра.
 
 ```csharp
 bool moveRegistered = actionsController.CurrentActions
     .Contains(MovementActions.Move);
 ```
 
-```csharp
-foreach (ActionId action in actionsController.CurrentActions)
-{
-    Debug.Log(action.Value);
-}
-```
+Для LINQ-метода `Contains()` может потребоваться `using System.Linq;`.
 
 ##### `AddAction(ActionId actionId, string authorId)`
 
@@ -632,35 +587,28 @@ foreach (ActionId action in actionsController.CurrentActions)
 public void AddAction(ActionId actionId, string authorId)
 ```
 
-**Назначение:** зарегистрировать действие от имени указанного автора.
-
-**Параметры:**
+Регистрирует действие от имени указанного автора.
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `actionId` | `ActionId` | Валидный идентификатор. Если `IsValid == false`, операция игнорируется с предупреждением. |
-| `authorId` | `string` | Непустой идентификатор автора. `null`, пустая строка и строка из пробелов отклоняются с предупреждением. |
+| `actionId` | `ActionId` | Должен иметь `IsValid == true`. |
+| `authorId` | `string` | Не может быть `null`, пустым или состоять только из пробелов. |
 
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — регистрация действия одним автором:**
-
-```csharp
-actionsController.AddAction(MovementActions.Move, "KeyboardInput");
-```
-
-**Пример 2 — регистрация того же действия несколькими авторами:**
+**Пример — несколько авторов одного действия:**
 
 ```csharp
 actionsController.AddAction(MovementActions.Move, "KeyboardInput");
 actionsController.AddAction(MovementActions.Move, "GamepadInput");
 ```
 
-**Ограничения и примечания:**
+**Поведение и ограничения:**
 
-- Метод работает только после `Initialize()`. До инициализации выводится предупреждение, регистрация не выполняется.
+- Метод работает только после успешной инициализации.
+- При невалидном `ActionId` или пустом `authorId` выводится предупреждение, состояние реестра не меняется.
 - Повторное добавление того же `authorId` для того же `ActionId` не создаёт дубликат.
-- Идентификаторы автора сравниваются как строки с учётом регистра.
+- Строковые идентификаторы авторов сравниваются с учётом регистра.
 
 ##### `RemoveAction(ActionId actionId, string authorId)`
 
@@ -670,54 +618,50 @@ actionsController.AddAction(MovementActions.Move, "GamepadInput");
 public void RemoveAction(ActionId actionId, string authorId)
 ```
 
-**Назначение:** снять регистрацию действия от имени конкретного автора.
-
-**Параметры:**
+Снимает регистрацию действия от имени конкретного автора.
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `actionId` | `ActionId` | Валидный идентификатор действия. |
+| `actionId` | `ActionId` | Должен иметь `IsValid == true` и присутствовать в реестре. |
 | `authorId` | `string` | Непустой идентификатор автора, ранее зарегистрировавшего действие. |
 
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — убрать регистрацию одного автора:**
+**Пример:**
 
 ```csharp
 actionsController.AddAction(MovementActions.Move, "KeyboardInput");
 actionsController.AddAction(MovementActions.Move, "GamepadInput");
+
 actionsController.RemoveAction(MovementActions.Move, "KeyboardInput");
-// Move остаётся зарегистрированным GamepadInput.
-```
+// Move всё ещё зарегистрирован GamepadInput.
 
-**Пример 2 — удалить последнюю регистрацию:**
-
-```csharp
 actionsController.RemoveAction(MovementActions.Move, "GamepadInput");
 // Если других авторов нет, Move удаляется из CurrentActions.
 ```
 
-**Ограничения и примечания:**
+**Поведение и ограничения:**
 
-- Метод работает только после `Initialize()`.
+- Метод работает только после успешной инициализации.
 - При невалидном `ActionId`, пустом `authorId`, отсутствии действия или отсутствии регистрации у указанного автора операция не выполняется; в соответствующих случаях выводится предупреждение.
 - Удаление одного автора не затрагивает регистрации других авторов.
 
 ##### `Initialize(CoreController core)` и `Deinitialize()`
 
-Публичные методы контракта `ICoreModule`. Первый включает операции реестра, второй отключает их. Параметр `core` не используется самим `ActionsController`. При `Deinitialize()` регистрации сохраняются.
-
-**Примеры:**
+Реализации методов контракта `ICoreModule`:
 
 ```csharp
-core.AddCoreModule(actionsController);
-// CoreController вызывает Initialize(this).
+public override bool Initialize(CoreController core);
+public override void Deinitialize();
 ```
 
-```csharp
-core.RemoveCoreModule(actionsController);
-// CoreController вызывает Deinitialize().
-```
+`Initialize()` возвращает `false`, если `core` равен `null`. В противном случае сохраняет ссылку на ядро и включает модуль. Сам `ActionsController` не использует переданную ссылку для операций реестра.
+
+`Deinitialize()` очищает ссылку на ядро и флаг инициализации, но сохраняет зарегистрированные действия.
+
+#### Примечания по жизненному циклу
+
+В `OnDestroy()` модуль пытается удалить себя из `CoreController`. Как и в других текущих Core-модулях, `_coreController` здесь не проверяется на `null` до вызова `RemoveCoreModule()`.
 
 **Tags:** `#core-modules #actions #registry`
 
@@ -727,18 +671,19 @@ core.RemoveCoreModule(actionsController);
 
 **Исходный файл:** [`Assets/Scripts/Core/CoreModules/ActionsPermissionsController.cs`](Assets/Scripts/Core/CoreModules/ActionsPermissionsController.cs)  
 **Namespace:** `Core.CoreModules`  
-**Тип:** `public class ActionsPermissionsController : MonoBehaviour, ICoreModule`  
-**Зависимости:** подключение к `CoreController` через `ICoreModule`.
+**Тип:** `public class ActionsPermissionsController : CoreModule`
 
 #### Назначение и ответственность
 
-Каждый `blockerId` представляет источник блокировки. Действие считается доступным, когда в системе не зарегистрировано ни одной блокировки для его `ActionId`. Система хранит состояние разрешений, но сама не запускает и не останавливает игровое действие.
+Каждый `blockerId` представляет источник блокировки. Действие считается доступным, если для него не зарегистрировано ни одной блокировки.
+
+Модуль хранит состояние разрешений, но сам не запускает и не останавливает игровое действие. Код, который выполняет действие, должен самостоятельно проверять `CanPerform()`.
 
 #### Жизненный цикл
 
-`Initialize(CoreController core)` разрешает вызовы `BlockAction()` и `UnblockAction()`. `Deinitialize()` отключает эти операции. Набор блокировок при деинициализации не очищается.
+`Initialize(CoreController core)` возвращает `false`, если `core` равен `null`. В противном случае сохраняет ссылку на ядро и разрешает операции `BlockAction()` и `UnblockAction()`.
 
-**Важно:** методы Action Permission принадлежат `ActionsPermissionsController`, а не `CoreController`. Получайте компонент и вызывайте его API напрямую.
+`Deinitialize()` очищает ссылку на ядро и отключает операции изменения блокировок. Набор блокировок при деинициализации не очищается.
 
 #### Public API
 
@@ -750,13 +695,13 @@ core.RemoveCoreModule(actionsController);
 public bool CanPerform(ActionId action)
 ```
 
-**Назначение:** проверить, зарегистрированы ли блокировки для действия.
+Проверяет, зарегистрированы ли блокировки для действия.
 
-**Параметры:** `action` — идентификатор действия.
+**Параметр:** `action` — идентификатор действия.
 
 **Возвращает:** `false`, если для действия есть хотя бы одна блокировка; иначе `true`.
 
-**Пример 1 — проверка возможности бега:**
+**Пример:**
 
 ```csharp
 if (permissions.CanPerform(MovementActions.Run))
@@ -765,18 +710,12 @@ if (permissions.CanPerform(MovementActions.Run))
 }
 ```
 
-**Пример 2 — совмещение проверки разрешения с состоянием земли:**
+**Особенности текущей реализации:**
 
-```csharp
-bool canJump = checkGround.IsGrounded
-               && permissions.CanPerform(MovementActions.Jump);
-```
-
-**Ограничения и примечания:**
-
-- В текущей реализации метод не проверяет состояние инициализации модуля.
-- Метод не проверяет `action.IsValid`. Для согласованной работы передавайте валидный `ActionId`.
-- Проверка только читает состояние блокировок. Она не выполняет действие и не меняет блокировки.
+- Метод не проверяет состояние инициализации модуля.
+- Метод не проверяет `action.IsValid`.
+- Для действия, отсутствующего в словаре блокировок, возвращается `true`. Поэтому до инициализации модуля или при передаче `default(ActionId)` результат также может быть `true`.
+- Метод только читает состояние блокировок: он не выполняет действие и не меняет блокировки.
 
 ##### `BlockAction(ActionId action, string blockerId)`
 
@@ -786,35 +725,28 @@ bool canJump = checkGround.IsGrounded
 public void BlockAction(ActionId action, string blockerId)
 ```
 
-**Назначение:** добавить блокировку действия от имени указанного источника.
-
-**Параметры:**
+Добавляет блокировку действия от имени указанного источника.
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `action` | `ActionId` | Валидный идентификатор действия. Невалидный идентификатор отклоняется с предупреждением. |
-| `blockerId` | `string` | Непустой идентификатор источника блокировки. `null`, пустая строка и строка из пробелов отклоняются с предупреждением. |
+| `action` | `ActionId` | Должен иметь `IsValid == true`. |
+| `blockerId` | `string` | Не может быть `null`, пустым или состоять только из пробелов. |
 
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — блокировка бега из-за выносливости:**
-
-```csharp
-permissions.BlockAction(MovementActions.Run, "Stamina");
-```
-
-**Пример 2 — независимые причины блокировки:**
+**Пример — независимые причины блокировки:**
 
 ```csharp
 permissions.BlockAction(MovementActions.Run, "Stamina");
 permissions.BlockAction(MovementActions.Run, "Injury");
 ```
 
-**Ограничения и примечания:**
+**Поведение и ограничения:**
 
-- Метод выполняет изменение только после `Initialize()`. До инициализации выводится предупреждение.
+- Метод работает только после успешной инициализации.
+- Невалидный `ActionId` и пустой `blockerId` отклоняются с предупреждением.
 - Один и тот же `blockerId` не дублируется для одного действия.
-- Добавление блокировки не останавливает уже выполняющееся действие. Код действия должен отдельно проверять `CanPerform()` в подходящий момент.
+- Добавление блокировки само по себе не останавливает уже выполняющееся действие. Код действия должен отдельно проверять `CanPerform()` в подходящий момент.
 
 ##### `UnblockAction(ActionId action, string blockerId)`
 
@@ -824,55 +756,50 @@ permissions.BlockAction(MovementActions.Run, "Injury");
 public void UnblockAction(ActionId action, string blockerId)
 ```
 
-**Назначение:** снять блокировку, принадлежащую указанному источнику.
-
-**Параметры:**
+Снимает блокировку, принадлежащую указанному источнику.
 
 | Параметр | Тип | Описание и ограничения |
 |---|---|---|
-| `action` | `ActionId` | Валидный идентификатор действия. |
-| `blockerId` | `string` | Непустой идентификатор источника, ранее заблокировавшего действие. |
+| `action` | `ActionId` | Должен иметь `IsValid == true`. |
+| `blockerId` | `string` | Идентификатор источника блокировки. Для изменения состояния должен быть непустым. |
 
 **Возвращает:** ничего (`void`).
 
-**Пример 1 — снять только одну из нескольких блокировок:**
+**Пример:**
 
 ```csharp
 permissions.BlockAction(MovementActions.Run, "Stamina");
 permissions.BlockAction(MovementActions.Run, "Injury");
+
 permissions.UnblockAction(MovementActions.Run, "Stamina");
 // Действие всё ещё заблокировано источником Injury.
-```
 
-**Пример 2 — снять последнюю блокировку:**
-
-```csharp
 permissions.UnblockAction(MovementActions.Run, "Injury");
 // Run снова разрешён, если других блокировок нет.
 ```
 
-**Ограничения и примечания:**
+**Поведение и ограничения:**
 
-- Метод выполняет изменение только после `Initialize()`.
-- Если действие или блокировка не найдены, выводится предупреждение.
-- `blockerId`, равный `null`, пустой строке или состоящий из пробелов, игнорируется без изменения состояния.
-- После снятия последней блокировки ключ действия удаляется из внутренней коллекции блокировок.
+- Метод работает только после успешной инициализации.
+- Невалидный `ActionId` отклоняется с предупреждением.
+- Если `blockerId` равен `null`, пустой строке или состоит из пробелов, метод не меняет состояние.
+- Если действие или указанный источник блокировки не найдены, выводится предупреждение.
+- После снятия последней блокировки ключ действия удаляется из внутреннего словаря.
 
 ##### `Initialize(CoreController core)` и `Deinitialize()`
 
-Публичные методы контракта `ICoreModule`. `Initialize()` разрешает изменение блокировок, а `Deinitialize()` запрещает. Параметр `core` самим модулем не используется. Существующие блокировки сохраняются при деинициализации.
-
-**Примеры:**
+Реализации методов контракта `ICoreModule`:
 
 ```csharp
-core.AddCoreModule(permissions);
-// CoreController вызывает Initialize(this).
+public override bool Initialize(CoreController core);
+public override void Deinitialize();
 ```
 
-```csharp
-core.RemoveCoreModule(permissions);
-// CoreController вызывает Deinitialize().
-```
+`Initialize()` возвращает `false`, если `core` равен `null`. В противном случае сохраняет ссылку на ядро и включает модуль. `Deinitialize()` сбрасывает ссылку и флаг инициализации, но не удаляет существующие блокировки.
+
+#### Примечания по жизненному циклу
+
+В `OnDestroy()` модуль пытается удалить себя из `CoreController`. Текущий код не проверяет `_coreController` на `null` перед вызовом `RemoveCoreModule()`.
 
 **Tags:** `#core-modules #actions #permissions`
 
@@ -880,20 +807,23 @@ core.RemoveCoreModule(permissions);
 
 ## GameModules
 
-В проверенной версии ветки `main` на момент обновления публичные компоненты `GameModules` и их подмодули в исходниках не обнаружены. Каталог `Assets/Scripts/Modules` не содержит исходных `.cs`-файлов, поэтому раздел пока не включает карточки игровых модулей.
+В проверенном состоянии ветки `main` публичные компоненты игровых модулей в справочник пока не включены. Этот раздел зарезервирован для отдельных игровых систем и их подмодулей.
 
-При появлении игровых систем добавляйте их сюда, сохраняя фактическую иерархию родительских модулей и подмодулей. Не переносите сюда общие механизмы, которые относятся к `Core` или `CoreModules`.
+При добавлении игровых систем описывайте здесь их фактическую иерархию. Общие механизмы, предназначенные для повторного использования разными игровыми системами, следует документировать в `Core` или `CoreModules`.
 
 **Tags:** `#game-modules`
 
 ## Общие замечания
 
-- `CoreController` управляет подключением и отключением `ICoreModule`, но не содержит прямых методов Action Registry или Action Permission.
-- `ActionsController` и `ActionsPermissionsController` — независимые модули. Первый отвечает за регистрацию действий и авторов, второй — за блокировки выполнения.
-- `ActionId` можно создать через `default`, несмотря на то что конструктор не принимает пустое значение. Всегда проверяйте `IsValid` перед регистрацией или блокировкой.
+- Для подключения через `CoreController` модуль должен наследоваться от `CoreModule`. Произвольный `MonoBehaviour`, который только реализует `ICoreModule`, штатными методами `AddCoreModule()` и `RemoveCoreModule()` не принимается.
+- `CoreModules` показывает компоненты из списка ядра, а `InitializedCoreModules` — только те, чья инициализация завершилась успешно.
+- `Initialize()` должен возвращать `true` только после успешной подготовки модуля. При `false` ядро вызывает `Deinitialize()` и удаляет модуль из своего списка.
+- `Deinitialize()` должен корректно обрабатывать частично инициализированное и уже очищенное состояние.
+- `ActionsController` отвечает за регистрацию действий и авторов. `ActionsPermissionsController` отвечает за блокировки выполнения. Это независимые модули.
+- `ActionId` можно создать через `default`, несмотря на проверки в конструкторе. Перед регистрацией и блокировкой проверяйте `IsValid`.
 - `CheckGround.IsGrounded` обновляется в `FixedUpdate()`, поэтому в других методах Unity читается результат последней выполненной физической проверки.
-- Все сигнатуры и сведения в этом документе проверены по исходникам `main`; документация не гарантирует стабильность экспериментального API.
+- Текущие `OnDestroy()` у `CheckGround`, `ActionsController` и `ActionsPermissionsController` обращаются к `_coreController` без проверки на `null`. Это стоит учитывать при уничтожении модулей, которые не прошли успешную инициализацию.
 
 ---
 
-*Документ описывает публичные типы и члены, обнаруженные в текущем состоянии репозитория. После каждого изменения публичного контракта необходимо сверять и обновлять соответствующие разделы.*
+*Документ описывает публичные типы и члены, обнаруженные в текущем состоянии репозитория. После изменения публичного контракта сверяйте и обновляйте соответствующие разделы по исходникам.*
