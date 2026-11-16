@@ -1,0 +1,32 @@
+{
+	"nodes":[
+		{"id":"7c9610e1963551a1","type":"group","x":-254,"y":-160,"width":654,"height":421,"color":"1","label":"Core"},
+		{"id":"7e8484062bbcedb1","type":"group","x":-254,"y":500,"width":654,"height":360,"color":"3","label":"GameModules"},
+		{"id":"53f3b5a5814bc9ff","type":"group","x":560,"y":-189,"width":360,"height":480,"color":"6","label":"CoreModules"},
+		{"id":"41a3f59104167f25","type":"group","x":60,"y":-109,"width":300,"height":340,"color":"2","label":"Core Scripts"},
+		{"id":"ccc6db794db4d81a","type":"group","x":60,"y":580,"width":300,"height":180,"color":"4","label":"MovementControllerSubModule"},
+		{"id":"01abc15a2d8708fc","type":"text","text":"CoreController.cs","x":-220,"y":-100,"width":250,"height":60,"color":"1"},
+		{"id":"484e67275eddc938","type":"text","text":"ActionId.cs","x":80,"y":-89,"width":250,"height":60,"color":"2"},
+		{"id":"5452562d49ccfec5","type":"text","text":"CoreModule.cs","x":80,"y":-9,"width":250,"height":60,"color":"2"},
+		{"id":"bb7148869ce87ed1","type":"text","text":"ICoreModule.cs","x":80,"y":71,"width":250,"height":60,"color":"2"},
+		{"id":"d4f3f0b03ae4915b","type":"text","text":"*etc.*","x":80,"y":151,"width":250,"height":60,"color":"2"},
+		{"id":"758df942a9d78b71","type":"text","text":"MovementController.cs","x":-240,"y":540,"width":250,"height":60,"color":"3"},
+		{"id":"6bac04cbbabe72bd","type":"text","text":"FightController.cs","x":-240,"y":620,"width":250,"height":60,"color":"3"},
+		{"id":"ecf08807897e80c6","type":"text","text":"PickupController.cs","x":-240,"y":700,"width":250,"height":60,"color":"3"},
+		{"id":"d4724a63b5079343","type":"text","text":"*etc.*","x":-240,"y":780,"width":250,"height":60,"color":"3"},
+		{"id":"77f53af33d044466","type":"text","text":"Jumping.cs","x":80,"y":600,"width":250,"height":60,"color":"4"},
+		{"id":"47b63afcad9e48e6","type":"text","text":"Running.cs","x":80,"y":670,"width":250,"height":60,"color":"4"},
+		{"id":"79efd40a7086414a","type":"text","text":"ActionController.cs","x":580,"y":21,"width":300,"height":50,"color":"6"},
+		{"id":"06d24c3db1d816f4","type":"text","text":"InputController.cs","x":580,"y":-70,"width":300,"height":61,"color":"6"},
+		{"id":"220ce82f285045e5","type":"text","text":"ActionPermissionController.cs","x":580,"y":101,"width":300,"height":60,"color":"6"},
+		{"id":"276d1ec32ca755d9","type":"text","text":"*etc.*","x":580,"y":191,"width":300,"height":60,"color":"6"},
+		{"id":"9118a2e74de35270","type":"text","text":"CheckGround.cs","x":580,"y":-159,"width":300,"height":60,"color":"6"}
+	],
+	"edges":[
+		{"id":"c4ee1b7a8a4c27c6","fromNode":"7c9610e1963551a1","fromSide":"right","toNode":"53f3b5a5814bc9ff","toSide":"left","color":"1"},
+		{"id":"3234430e480462ea","fromNode":"758df942a9d78b71","fromSide":"right","toNode":"ccc6db794db4d81a","toSide":"left","color":"3"},
+		{"id":"d51f09c1a07d4a24","fromNode":"7e8484062bbcedb1","fromSide":"top","toNode":"7c9610e1963551a1","toSide":"bottom","color":"3"},
+		{"id":"ed09a80a52e96083","fromNode":"758df942a9d78b71","fromSide":"top","toNode":"01abc15a2d8708fc","toSide":"bottom","color":"3"},
+		{"id":"3491b599fb3817a5","fromNode":"01abc15a2d8708fc","fromSide":"top","toNode":"9118a2e74de35270","toSide":"left","color":"3"}
+	]
+}
