@@ -68,36 +68,7 @@
 - Поддержка C# 8.0+
 
 ### Основы использования
-
-1. **Добавьте `CoreController` на игровой объект:**
-
-   ```csharp
-   using Core;
-   using UnityEngine;
-   
-   public class Character : MonoBehaviour
-   {
-       [SerializeField] private CoreController core;
-   }
-   ```
-
-2. **Подключите необходимые модули:**
-
-   ```csharp
-   using Core.CoreModules;
-   
-   core.AddCoreModule(checkGroundModule);
-   core.AddCoreModule(actionsController);
-   ```
-
-3. **Используйте API модулей:**
-
-   ```csharp
-   if (checkGround.IsGrounded && permissions.CanPerform(MovementActions.Jump))
-   {
-       // Выполнить прыжок
-   }
-   ```
+На данный момент исходный код предоставлен в формате Unity проекта, поэтому не может использоваться как инструмент в формате Unity Packages. Версия, готовая к работе и установке будет предоставлена в релизе ALPHA1
 
 Подробные примеры и описание API каждого компонента см. в [Library API](Library%20API.md).
 
