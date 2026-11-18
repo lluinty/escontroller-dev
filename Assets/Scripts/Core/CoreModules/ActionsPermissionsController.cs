@@ -27,6 +27,10 @@ namespace Core.CoreModules
 
         public bool CanPerform(ActionId action)
         {
+            if (!action.IsValid)
+            {
+                return false;
+            }
             return !_blockers.TryGetValue(action, out var blockers) || blockers.Count == 0;
         }
 
@@ -103,6 +107,10 @@ namespace Core.CoreModules
                     Debug.LogWarning(
                         $"Something tried to unblock action, that was already unblocked. blockerId {blockerId}");
                 }
+            }
+            else
+            {
+                Debug.LogWarning($"blockerId is null or whitespace, so can't unblock action {action}");
             }
         }
 
