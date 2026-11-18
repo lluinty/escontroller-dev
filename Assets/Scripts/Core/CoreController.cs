@@ -94,7 +94,26 @@ namespace Core
                         initializedModulesToRemove.Add(module);
                     }
                 }
-
+                
+                //Добавление модулей нуждающихся в удалении после инициализации.
+                while (_modulesToAddAfterInitialization.Count > 0)
+                {
+                    var modulesLocal = _modulesToAddAfterInitialization;
+                    _modulesToAddAfterInitialization = new List<CoreModule>();
+                    foreach (var module in modulesLocal)
+                    {
+                        if (!module) continue;
+                        coreModules.Add(module);
+                        if (!TryInitializeCoreModule(module))
+                        {
+                            Debug.LogWarning($"Не удалось инициализировать модуль {module}");
+                            TryDeinitializeCoreModule(module);
+                            coreModules.Remove(module);
+                        }
+                    }
+                }
+                _modulesToAddAfterInitialization.Clear();
+                
                 //Удаление модулей нуждающихся в удалении после инициализации.
                 while (_modulesToRemoveAfterInitialization.Count > 0)
                 {
@@ -157,26 +176,34 @@ namespace Core
             }
         }
 
+        #endregion
+
+
+        #region Public Modueles API
+
+        private List<CoreModule> _modulesToAddAfterInitialization = new List<CoreModule>();
+
         public void AddCoreModule(CoreModule module)
         {
-            if (_isInitializing)
-            {
-                Debug.LogWarning
-                    ($"{module} не может быть добавлен, так как происходит иницализация модулей.");
-                return;
-            }
-
-            if (module && !coreModules.Contains(module))
-            {
-                coreModules.Add(module);
-                InitializeCoreModules();
-            }
-            else
+            if(!module || coreModules.Contains(module))
             {
                 Debug.LogWarning
                     ($"{module} не может быть добавлен, тк имеет значение null или уже существует");
                 return;
             }
+            
+            if (_isInitializing)
+            {
+                if (!_modulesToAddAfterInitialization.Contains(module))
+                {
+                    _modulesToAddAfterInitialization.Add(module);
+                    Debug.Log
+                    ($"{module} не может быть добавлен сейчас, " +
+                     $"так как происходит иницализация модулей. Модуль будет добавлен после инициализации.");
+                }
+                return;
+            }
+            InitializeCoreModules();
         }
 
         private List<CoreModule> _modulesToRemoveAfterInitialization = new List<CoreModule>();
@@ -209,6 +236,7 @@ namespace Core
         }
 
         #endregion
+
 
         private bool GetComponents()
         {
